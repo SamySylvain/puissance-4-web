@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Puissance 4 Web</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #2c3e50;
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    .card {
+      width: 620px;
+      padding: 20px;
+      border-radius: 12px;
+      background: #34495e;
+      box-sizing: border-box;
+    }
+
+    h1 {
+      text-align: center;
+      margin-top: 0;
+      margin-bottom: 20px;
+      font-size: 32px;
+    }
+
+    .menu button, .controls button {
+      width: 100%;
+      padding: 12px;
+      margin: 6px 0;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    .btn-default { background: #ecf0f1; color: #2c3e50; }
+    .btn-secondary { background: #95a5a6; color: #2c3e50; }
+    .btn-dark { background: #34495e; color: white; border: 1px solid #7f8c8d !important; }
+
+    #gameView { display: none; }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .left-controls, .right-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .left-controls button {
+      width: auto;
+      margin: 0;
+      padding: 8px 14px;
+      font-size: 14px;
+    }
+
+    .end-actions {
+      display: none;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .end-actions button {
+      width: auto;
+      margin: 0;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    #status {
+      font-weight: bold;
+      min-width: 170px;
+      text-align: center;
+    }
+
+    #depthValue { font-weight: bold; }
+
+    #gameCanvas {
+      display: block;
+      margin: 0 auto;
+      background: blue;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    #message {
+      text-align: center;
+      min-height: 22px;
+      margin-top: 8px;
+      color: #f1c40f;
+      font-weight: bold;
+    }
+
+    .below-board-controls {
+      display: none;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div id="menuView" class="menu">
+      <h1>PUISSANCE 4</h1>
+      <button class="btn-default" id="btnMode1">Joueur vs Joueur</button>
+      <button class="btn-default" id="btnMode4">Joueur vs IA (Aléatoire)</button>
+      <button class="btn-default" id="btnMode2">Joueur vs IA (Minimax)</button>
+      <button class="btn-default" id="btnMode3">IA vs IA</button>
+      <button class="btn-secondary" id="btnLoad">Charger la partie</button>
+    </div>
+
+    <div id="gameView">
+      <div class="toolbar">
+        <div class="left-controls controls">
+          <button class="btn-default" id="btnUndo">UNDO</button>
+          <button class="btn-default" id="btnSave">SAVE</button>
+          <button class="btn-default" id="btnAbandon">ABANDON</button>
+          <span id="status"></span>
+        </div>
+
+        <div class="right-controls" id="iaControls" style="display:none;">
+          <label for="depth">Profondeur IA</label>
+          <input type="range" id="depth" min="1" max="3" value="3" />
+          <span id="depthValue">3</span>
+        </div>
+      </div>
+
+      <canvas id="gameCanvas" width="540" height="620"></canvas>
+
+      <div id="iaVsIaDepth" class="below-board-controls">
+        <label for="depthMode3">Profondeur IA</label>
+        <input type="range" id="depthMode3" min="1" max="3" value="3" />
+        <span id="depthMode3Value">3</span>
+      </div>
+
+      <div id="message"></div>
+
+      <div id="endActions" class="end-actions">
+        <button class="btn-default" id="btnReplay">REJOUER</button>
+        <button class="btn-dark" id="btnReturnMenu">RETOUR MENU</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const NB_LIGNES = 9;
+    const NB_COLONNES = 9;
+    const TAILLE_CASE = 60;
+
+    const menuView = document.getElementById('menuView');
+    const gameView = document.getElementById('gameView');
+    const gameCanvas = document.getElementById('gameCanvas');
+    const ctx = gameCanvas.getContext('2d');
+    const statusEl = document.getElementById('status');
+    const messageEl = document.getElementById('message');
+    const endActions = document.getElementById('endActions');
+    const iaControls = document.getElementById('iaControls');
+    const depthInput = document.getElementById('depth');
+    const depthValue = document.getElementById('depthValue');
+    const iaVsIaDepth = document.getElementById('iaVsIaDepth');
+    const depthMode3Input = document.getElementById('depthMode3');
+    const depthMode3Value = document.getElementById('depthMode3Value');
+
+    let state = null;
+    let iaTimer = null;
+    let aiRequestInFlight = false;
+    let playerVsAiTimeout = null;
+    const SAVES_KEY = 'puissance4_saves';
+
+    const pionsGagnantsSet = () => new Set((state?.pions_gagnants || []).map(([l, c]) => `${l}-${c}`));
+
+    function setViewGame(isGame) {
+      menuView.style.display = isGame ? 'none' : 'block';
+      gameView.style.display = isGame ? 'block' : 'none';
+      if (!isGame && iaTimer) {
+        clearInterval(iaTimer);
+        iaTimer = null;
+      }
+      if (!isGame && playerVsAiTimeout) {
+        clearTimeout(playerVsAiTimeout);
+        playerVsAiTimeout = null;
+      }
+      if (!isGame) {
+        aiRequestInFlight = false;
+      }
+    }
+
+    async function returnToMenu(clearServerState = true) {
+      if (clearServerState) {
+        await api('/api/clear_state', 'POST');
+      }
+      setViewGame(false);
+      state = null;
+      statusEl.textContent = '';
+      messageEl.textContent = '';
+    }
+
+    async function api(url, method = 'GET', body = null) {
+      const opts = { method, headers: { 'Content-Type': 'application/json' } };
+      if (body) opts.body = JSON.stringify(body);
+      const res = await fetch(url, opts);
+      return await res.json();
+    }
+
+    function getSavedGames() {
+      const raw = localStorage.getItem(SAVES_KEY);
+      if (!raw) return [];
+      try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function setSavedGames(saves) {
+      localStorage.setItem(SAVES_KEY, JSON.stringify(saves));
+    }
+
+    function updateStatus() {
+      if (!state) return;
+      if (state.jeu_en_cours) {
+        const color = state.jeton_actuel === 1 ? 'red' : 'yellow';
+        statusEl.style.color = color;
+        statusEl.textContent = `Tour du Joueur ${state.jeton_actuel}`;
+        endActions.style.display = 'none';
+      } else {
+        statusEl.style.color = 'white';
+        statusEl.textContent = 'PARTIE TERMINÉE';
+        endActions.style.display = 'flex';
+      }
+
+      iaControls.style.display = 'none';
+      iaVsIaDepth.style.display = (state.mode === 2 || state.mode === 3) ? 'flex' : 'none';
+
+      const depth = state.profondeur_ia || 3;
+      depthInput.value = depth;
+      depthValue.textContent = String(depth);
+      depthMode3Input.value = depth;
+      depthMode3Value.textContent = String(depth);
+    }
+
+    function drawBoard() {
+      if (!state) return;
+      ctx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
+
+      // Fond bleu
+      ctx.fillStyle = 'blue';
+      ctx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
+
+      // Numéros colonnes
+      ctx.fillStyle = 'white';
+      ctx.font = 'bold 14px Arial';
+      ctx.textAlign = 'center';
+      for (let c = 0; c < NB_COLONNES; c++) {
+        const x = c * TAILLE_CASE + TAILLE_CASE / 2;
+        ctx.fillText(String(c + 1), x, 18);
+      }
+
+      const gagnants = pionsGagnantsSet();
+
+      // Cases + pions
+      for (let l = 0; l < NB_LIGNES; l++) {
+        for (let c = 0; c < NB_COLONNES; c++) {
+          const x1 = c * TAILLE_CASE;
+          const y1 = l * TAILLE_CASE + 30;
+          const cx = x1 + TAILLE_CASE / 2;
+          const cy = y1 + TAILLE_CASE / 2;
+          const val = state.plateau[l][c];
+
+          let color = 'white';
+          if (val === 1) color = 'red';
+          if (val === 2) color = 'yellow';
+
+          ctx.beginPath();
+          ctx.arc(cx, cy, TAILLE_CASE / 2 - 5, 0, Math.PI * 2);
+          ctx.fillStyle = color;
+          ctx.fill();
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = 'black';
+          ctx.stroke();
+
+          if (gagnants.has(`${l}-${c}`) && val !== 0) {
+            ctx.beginPath();
+            ctx.arc(cx, cy, TAILLE_CASE / 2 - 2, 0, Math.PI * 2);
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = 'white';
+            ctx.stroke();
+          }
+        }
+      }
+
+      // Scores colonnes bas
+      for (let c = 0; c < NB_COLONNES; c++) {
+        const score = state.scores_colonnes?.[c];
+        if (score === null || score === undefined) continue;
+
+        let color = 'white';
+        if (score > 500) color = '#2ecc71';
+        if (score < -500) color = '#e74c3c';
+
+        const x = c * TAILLE_CASE + TAILLE_CASE / 2;
+        const y = NB_LIGNES * TAILLE_CASE + 45;
+
+        ctx.fillStyle = color;
+        ctx.font = 'bold 10px Arial';
+        ctx.fillText(String(score), x, y);
+      }
+    }
+
+    function renderAll() {
+      updateStatus();
+      drawBoard();
+      if (!state?.jeu_en_cours && state?.pions_gagnants?.length) {
+        const gagnant = state.jeton_actuel === 2 ? 'ROUGE' : 'JAUNE';
+        messageEl.textContent = `Victoire du joueur ${gagnant}`;
+      } else {
+        messageEl.textContent = '';
+      }
+    }
+
+    async function startGame(mode) {
+      const data = await api('/api/new_game', 'POST', { mode });
+      if (!data.ok) {
+        alert(data.error || 'Erreur création partie');
+        return;
+      }
+      state = data.state;
+      setViewGame(true);
+      renderAll();
+      setupIaLoop();
+    }
+
+    function scheduleMode2AiIfNeeded() {
+      if (!state || state.mode !== 2 || !state.jeu_en_cours || state.jeton_actuel !== 2) return;
+      if (playerVsAiTimeout) {
+        clearTimeout(playerVsAiTimeout);
+        playerVsAiTimeout = null;
+      }
+      playerVsAiTimeout = setTimeout(async () => {
+        if (!state || state.mode !== 2 || !state.jeu_en_cours || state.jeton_actuel !== 2) return;
+        if (aiRequestInFlight) return;
+        aiRequestInFlight = true;
+        try {
+          const aiData = await api('/api/ai_move', 'POST');
+          if (!aiData.ok) {
+            messageEl.textContent = aiData.error || "Erreur lors du coup de l'IA";
+            return;
+          }
+          state = aiData.state;
+          renderAll();
+        } finally {
+          aiRequestInFlight = false;
+        }
+      }, 600);
+    }
+
+    async function restoreGameIfAny() {
+      const data = await api('/api/state');
+      if (!data.ok || !data.state) return;
+      state = data.state;
+      setViewGame(true);
+      renderAll();
+      setupIaLoop();
+      scheduleMode2AiIfNeeded();
+    }
+
+    function setupIaLoop() {
+      if (iaTimer) {
+        clearInterval(iaTimer);
+        iaTimer = null;
+      }
+      if (state?.mode === 3 || state?.mode === 4) {
+        iaTimer = setInterval(async () => {
+          if (aiRequestInFlight) return;
+          if (!state?.jeu_en_cours) {
+            clearInterval(iaTimer);
+            iaTimer = null;
+            return;
+          }
+          if (state.mode === 4 && state.jeton_actuel !== 2) {
+            return;
+          }
+          aiRequestInFlight = true;
+          try {
+            const endpoint = state.mode === 3 ? '/api/ai_step' : '/api/ai_move';
+            const data = await api(endpoint, 'POST');
+            if (data.ok) {
+              state = data.state;
+              renderAll();
+            }
+          } finally {
+            aiRequestInFlight = false;
+          }
+        }, 600);
+      }
+    }
+
+    gameCanvas.addEventListener('click', async (event) => {
+      if (!state || !state.jeu_en_cours) return;
+      if (state.mode === 3) return;
+
+      const rect = gameCanvas.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      if (y > NB_LIGNES * TAILLE_CASE + 30) return;
+      if (y < 30) return;
+
+      const col = Math.floor(x / TAILLE_CASE);
+      const data = await api('/api/play', 'POST', { col });
+      if (!data.ok) {
+        messageEl.textContent = data.error || 'Coup invalide';
+        return;
+      }
+      state = data.state;
+      renderAll();
+
+      if (state.mode === 2 && state.jeu_en_cours && state.jeton_actuel === 2) {
+        scheduleMode2AiIfNeeded();
+      }
+    });
+
+    document.getElementById('btnMode1').addEventListener('click', () => startGame(1));
+    document.getElementById('btnMode4').addEventListener('click', () => startGame(4));
+    document.getElementById('btnMode2').addEventListener('click', () => startGame(2));
+    document.getElementById('btnMode3').addEventListener('click', () => startGame(3));
+
+    document.getElementById('btnUndo').addEventListener('click', async () => {
+      if (!state) return;
+      if (playerVsAiTimeout) {
+        clearTimeout(playerVsAiTimeout);
+        playerVsAiTimeout = null;
+      }
+      const data = await api('/api/undo', 'POST');
+      if (!data.ok) {
+        messageEl.textContent = data.error || 'Undo impossible';
+        return;
+      }
+      state = data.state;
+      renderAll();
+    });
+
+    document.getElementById('btnSave').addEventListener('click', async () => {
+      if (!state) return;
+
+      // Sauvegarde locale (localStorage) comme avant
+      const saves = getSavedGames();
+      const savedAt = Date.now();
+      const snapshot = JSON.parse(JSON.stringify(state));
+      saves.push({
+        id: `${savedAt}-${Math.floor(Math.random() * 100000)}`,
+        name: `Partie ${saves.length + 1}`,
+        savedAt,
+        mode: state.mode,
+        state: snapshot,
+      });
+      setSavedGames(saves);
+
+      // Mise à jour du statut SAVE en base de données
+      const data = await api('/api/save', 'POST');
+      if (!data.ok) {
+        messageEl.textContent = data.error || 'Erreur lors de la sauvegarde.';
+        return;
+      }
+
+      // Retour au menu
+      await returnToMenu(true);
+      messageEl.textContent = 'Partie sauvegardée.';
+    });
+
+    document.getElementById('btnAbandon').addEventListener('click', async () => {
+      if (!state) return;
+      const confirmed = window.confirm('Voulez-vous vraiment abandonner la partie ?');
+      if (!confirmed) return;
+      const data = await api('/api/abandon', 'POST');
+      if (!data.ok) {
+        messageEl.textContent = data.error || 'Abandon impossible';
+        return;
+      }
+      state = data.state;
+      renderAll();
+      await returnToMenu(true);
+      messageEl.textContent = data.message || 'Partie abandonnée.';
+    });
+
+    document.getElementById('btnLoad').addEventListener('click', async () => {
+      window.location.href = '/saves';
+    });
+
+    document.getElementById('btnReplay').addEventListener('click', async () => {
+      if (!state) return;
+      await startGame(state.mode);
+    });
+
+    document.getElementById('btnReturnMenu').addEventListener('click', () => {
+      returnToMenu(true);
+    });
+
+    async function setDepthValue(value) {
+      if (!state) return;
+      const data = await api('/api/set_depth', 'POST', { depth: Number(value) });
+      if (data.ok) {
+        state = data.state;
+        renderAll();
+      }
+    }
+
+    depthInput.addEventListener('input', async () => {
+      depthValue.textContent = depthInput.value;
+      depthMode3Value.textContent = depthInput.value;
+      depthMode3Input.value = depthInput.value;
+      await setDepthValue(depthInput.value);
+    });
+
+    depthMode3Input.addEventListener('input', async () => {
+      depthMode3Value.textContent = depthMode3Input.value;
+      depthValue.textContent = depthMode3Input.value;
+      depthInput.value = depthMode3Input.value;
+      await setDepthValue(depthMode3Input.value);
+    });
+
+    restoreGameIfAny();
+  </script>
+</body>
+</html>
