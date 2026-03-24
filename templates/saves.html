@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sauvegardes - Puissance 4</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #2c3e50;
+      color: white;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 24px;
+      box-sizing: border-box;
+    }
+
+    .card {
+      width: 980px;
+      max-width: 100%;
+      background: #34495e;
+      border-radius: 12px;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    h1 {
+      margin: 0 0 14px 0;
+      text-align: center;
+      font-size: 28px;
+    }
+
+    .top-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+      gap: 8px;
+    }
+
+    .top-actions button {
+      border: none;
+      border-radius: 8px;
+      padding: 10px 14px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .btn-menu { background: #95a5a6; color: #2c3e50; }
+    .btn-clear { background: #e74c3c; color: white; }
+
+    .saves-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 10px;
+    }
+
+    .save-card {
+      background: #2c3e50;
+      border: 1px solid #4a6278;
+      border-radius: 8px;
+      padding: 8px;
+    }
+
+    .save-meta {
+      font-size: 12px;
+      line-height: 1.35;
+      margin-bottom: 8px;
+    }
+
+    .save-thumb {
+      width: 100%;
+      border-radius: 6px;
+      background: blue;
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    .save-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    .save-actions button {
+      width: 100%;
+      border: none;
+      border-radius: 6px;
+      padding: 7px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .btn-load { background: #ecf0f1; color: #2c3e50; }
+    .btn-del { background: #e74c3c; color: white; }
+
+    .empty {
+      text-align: center;
+      font-size: 14px;
+      color: #dfe6e9;
+      padding: 24px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>PARTIES SAUVEGARDÉES</h1>
+
+    <div class="top-actions">
+      <button class="btn-menu" id="btnBack">RETOUR MENU</button>
+      <button class="btn-clear" id="btnDeleteAll">SUPPRIMER TOUTES LES SAUVEGARDES</button>
+    </div>
+
+    <div id="savesGrid" class="saves-grid"></div>
+  </div>
+
+  <script>
+    const SAVES_KEY = 'puissance4_saves';
+    const NB_LIGNES = 9;
+    const NB_COLONNES = 9;
+    const savesGrid = document.getElementById('savesGrid');
+
+    function getSavedGames() {
+      const raw = localStorage.getItem(SAVES_KEY);
+      if (!raw) return [];
+      try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function setSavedGames(saves) {
+      localStorage.setItem(SAVES_KEY, JSON.stringify(saves));
+    }
+
+    function modeLabel(mode) {
+      if (mode === 1) return 'Joueur vs Joueur';
+      if (mode === 2) return 'Joueur vs IA (Minimax)';
+      if (mode === 3) return 'IA vs IA';
+      if (mode === 4) return 'Joueur vs IA (Aléatoire)';
+      return `Mode ${mode}`;
+    }
+
+    function formatDate(ts) {
+      const d = new Date(ts);
+      if (Number.isNaN(d.getTime())) return '-';
+      return d.toLocaleString('fr-FR');
+    }
+
+    async function api(url, method = 'GET', body = null) {
+      const opts = { method, headers: { 'Content-Type': 'application/json' } };
+      if (body) opts.body = JSON.stringify(body);
+      const res = await fetch(url, opts);
+      return await res.json();
+    }
+
+    function drawThumbnail(canvas, plateau) {
+      const tctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+      const topPad = 12;
+      const cellW = w / NB_COLONNES;
+      const cellH = (h - topPad) / NB_LIGNES;
+
+      tctx.clearRect(0, 0, w, h);
+      tctx.fillStyle = 'blue';
+      tctx.fillRect(0, 0, w, h);
+
+      for (let l = 0; l < NB_LIGNES; l++) {
+        for (let c = 0; c < NB_COLONNES; c++) {
+          const val = plateau?.[l]?.[c] ?? 0;
+          const cx = c * cellW + cellW / 2;
+          const cy = topPad + l * cellH + cellH / 2;
+          const r = Math.max(2, Math.min(cellW, cellH) / 2 - 1);
+          let color = 'white';
+          if (val === 1) color = 'red';
+          if (val === 2) color = 'yellow';
+          tctx.beginPath();
+          tctx.arc(cx, cy, r, 0, Math.PI * 2);
+          tctx.fillStyle = color;
+          tctx.fill();
+          tctx.lineWidth = 0.7;
+          tctx.strokeStyle = 'black';
+          tctx.stroke();
+        }
+      }
+    }
+
+    function renderSaves() {
+      const saves = getSavedGames().sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+      if (saves.length === 0) {
+        savesGrid.innerHTML = '<div class="empty">Aucune sauvegarde disponible.</div>';
+        return;
+      }
+
+      savesGrid.innerHTML = saves.map((save) => {
+        const turnText = save.state?.jeu_en_cours ? `Tour: Joueur ${save.state?.jeton_actuel ?? '-'}` : 'Partie terminée';
+        return `
+          <div class="save-card" data-save-id="${save.id}">
+            <div class="save-meta">
+              <div><strong>${save.name}</strong></div>
+              <div>${modeLabel(save.mode)}</div>
+              <div>${formatDate(save.savedAt)}</div>
+              <div>${turnText}</div>
+            </div>
+            <canvas class="save-thumb" id="thumb-${save.id}" width="160" height="172"></canvas>
+            <div class="save-actions">
+              <button class="btn-load" data-action="load" data-id="${save.id}">Charger</button>
+              <button class="btn-del" data-action="delete" data-id="${save.id}">Supprimer</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      for (const save of saves) {
+        const canvas = document.getElementById(`thumb-${save.id}`);
+        if (canvas) drawThumbnail(canvas, save.state?.plateau || []);
+      }
+    }
+
+    savesGrid.addEventListener('click', async (event) => {
+      const button = event.target.closest('button[data-action]');
+      if (!button) return;
+
+      const action = button.getAttribute('data-action');
+      const id = button.getAttribute('data-id');
+      const saves = getSavedGames();
+      const idx = saves.findIndex((s) => String(s.id) === String(id));
+      if (idx < 0) return;
+
+      if (action === 'delete') {
+        saves.splice(idx, 1);
+        setSavedGames(saves);
+        renderSaves();
+        return;
+      }
+
+      if (action === 'load') {
+        const chosen = saves[idx];
+        const data = await api('/api/load', 'POST', { state: chosen.state });
+        if (!data.ok) {
+          alert(data.error || 'Impossible de charger cette sauvegarde.');
+          return;
+        }
+        window.location.href = '/';
+      }
+    });
+
+    document.getElementById('btnBack').addEventListener('click', () => {
+      window.location.href = '/';
+    });
+
+    document.getElementById('btnDeleteAll').addEventListener('click', () => {
+      const ok = window.confirm('Supprimer toutes les sauvegardes locales ?');
+      if (!ok) return;
+      setSavedGames([]);
+      renderSaves();
+    });
+
+    renderSaves();
+  </script>
+</body>
+</html>
