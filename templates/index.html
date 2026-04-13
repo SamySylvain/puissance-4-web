@@ -5,96 +5,109 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Puissance 4 Web</title>
   <style>
+    * { box-sizing: border-box; }
+
     body {
       margin: 0;
       font-family: Arial, sans-serif;
       background: #2c3e50;
       color: white;
-      display: flex;
-      justify-content: center;
-      align-items: center;
       min-height: 100vh;
-    }
-
-    .card {
-      width: 620px;
-      padding: 20px;
-      border-radius: 12px;
-      background: #34495e;
-      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 6px 12px;
     }
 
     h1 {
-      text-align: center;
-      margin-top: 0;
-      margin-bottom: 20px;
-      font-size: 32px;
+      text-align: left;
+      margin: 0 0 10px 0;
+      font-size: 18px;
+      letter-spacing: 3px;
+      white-space: nowrap;
     }
 
-    .menu button, .controls button {
-      width: 100%;
-      padding: 12px;
-      margin: 6px 0;
-      border: none;
-      border-radius: 6px;
-      font-size: 16px;
-      cursor: pointer;
-    }
-
-    .btn-default { background: #ecf0f1; color: #2c3e50; }
-    .btn-secondary { background: #95a5a6; color: #2c3e50; }
-    .btn-dark { background: #34495e; color: white; border: 1px solid #7f8c8d !important; }
-
-    #gameView { display: none; }
-
-    .toolbar {
+    /* ═══════════════════════════════════
+       LAYOUT PRINCIPAL (3 colonnes)
+    ═══════════════════════════════════ */
+    .game-layout {
       display: flex;
-      justify-content: space-between;
-      gap: 10px;
-      margin-bottom: 10px;
+      gap: 14px;
+      align-items: flex-start;
     }
 
-    .left-controls, .right-controls {
+    /* ─── Panneau gauche ─── */
+    .left-panel {
+      width: 148px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding-top: 44px;
+    }
+
+    .left-panel button {
+      width: 100%;
+      padding: 11px 8px;
+      border: none;
+      border-radius: 7px;
+      font-size: 13px;
+      cursor: pointer;
+      background: #4a6278;
+      color: white;
+      font-weight: bold;
+      transition: background .15s;
+    }
+    .left-panel button:hover { background: #5a7390; }
+
+    /* ─── Zone plateau ─── */
+    .board-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .board-toolbar {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 5px;
+      margin-bottom: 7px;
+      width: 432px;
+      flex-wrap: wrap;
     }
 
-    .left-controls button {
-      width: auto;
-      margin: 0;
-      padding: 8px 14px;
-      font-size: 14px;
-    }
-
-    .end-actions {
-      display: none;
-      justify-content: center;
-      gap: 10px;
-      margin-top: 10px;
-    }
-
-    .end-actions button {
-      width: auto;
-      margin: 0;
-      padding: 10px 16px;
+    .board-toolbar button {
+      padding: 7px 11px;
       border: none;
       border-radius: 6px;
-      font-size: 14px;
+      font-size: 13px;
       cursor: pointer;
+      background: #ecf0f1;
+      color: #2c3e50;
+      font-weight: bold;
+      transition: opacity .15s;
+    }
+    .board-toolbar button:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+    .board-toolbar button.btn-danger {
+      background: #c0392b;
+      color: white;
+    }
+    .board-toolbar button.btn-danger:not(:disabled):hover {
+      background: #e74c3c;
     }
 
     #status {
-      font-weight: bold;
-      min-width: 170px;
+      flex: 1;
       text-align: center;
+      font-weight: bold;
+      font-size: 14px;
+      min-width: 100px;
     }
-
-    #depthValue { font-weight: bold; }
 
     #gameCanvas {
       display: block;
-      margin: 0 auto;
       background: blue;
       border-radius: 4px;
       cursor: pointer;
@@ -103,84 +116,248 @@
     #message {
       text-align: center;
       min-height: 22px;
-      margin-top: 8px;
-      color: #f1c40f;
+      margin-top: 7px;
       font-weight: bold;
+      font-size: 15px;
     }
 
-    .below-board-controls {
+    .end-actions {
       display: none;
       justify-content: center;
-      align-items: center;
-      gap: 8px;
+      gap: 10px;
       margin-top: 8px;
     }
-
-    /* ---- Mode Édition ---- */
-    #editView { display: none; }
-
-    .edit-palette {
-      display: flex;
-      justify-content: center;
-      gap: 10px;
-      margin-bottom: 8px;
-    }
-
-    .pal-btn {
-      padding: 7px 18px;
-      border: 3px solid transparent;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: bold;
-    }
-    .pal-btn.active  { border-color: white; }
-    .pal-erase  { background: #7f8c8d; color: white; }
-    .pal-rouge  { background: red;     color: white; }
-    .pal-jaune  { background: #f1c40f; color: #2c3e50; }
-
-    .edit-first {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 10px;
-      margin-top: 6px;
-      font-size: 14px;
-    }
-
-    .edit-start {
-      display: flex;
-      justify-content: center;
-      gap: 8px;
-      margin-top: 8px;
-      flex-wrap: wrap;
-    }
-    .edit-start button {
-      padding: 10px 14px;
+    .end-actions button {
+      padding: 9px 18px;
       border: none;
       border-radius: 6px;
       font-size: 14px;
       cursor: pointer;
-      background: #ecf0f1;
-      color: #2c3e50;
       font-weight: bold;
     }
 
+    /* ─── Panneau droit ─── */
+    .right-panel {
+      width: 196px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .r-section {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .r-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #95a5a6;
+      font-weight: bold;
+      margin: 0;
+    }
+
+    /* Boutons de mode */
+    .mode-btn {
+      width: 100%;
+      padding: 8px 10px;
+      border: 2px solid transparent;
+      border-radius: 7px;
+      font-size: 12.5px;
+      cursor: pointer;
+      background: #3d5166;
+      color: #ecf0f1;
+      text-align: left;
+      transition: background .15s;
+      font-weight: bold;
+    }
+    .mode-btn:hover { background: #4a6278; }
+    .mode-btn.active {
+      background: #1e8449;
+      border-color: #27ae60;
+      color: white;
+    }
+
+    /* Boutons toggle (qui commence / je joue) */
+    .toggle-group {
+      display: flex;
+      gap: 5px;
+    }
+    .toggle-btn {
+      flex: 1;
+      padding: 7px 4px;
+      border: 2px solid transparent;
+      border-radius: 7px;
+      font-size: 12.5px;
+      cursor: pointer;
+      background: #3d5166;
+      color: #ecf0f1;
+      font-weight: bold;
+      transition: background .15s;
+    }
+    .toggle-btn:hover:not(:disabled) { background: #4a6278; }
+    .toggle-btn:disabled { opacity: 0.4; cursor: default; }
+    .toggle-btn.sel-rouge {
+      background: #922b21;
+      border-color: #e74c3c;
+      color: white;
+    }
+    .toggle-btn.sel-jaune {
+      background: #b7770d;
+      border-color: #f39c12;
+      color: white;
+    }
+
+    /* Profondeur */
+    .depth-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .depth-row input[type=range] {
+      flex: 1;
+      accent-color: #27ae60;
+    }
+    #depthValue {
+      font-weight: bold;
+      min-width: 16px;
+      text-align: right;
+    }
+    .depth-section-wrap { transition: opacity .2s; }
+    .depth-section-wrap.dimmed { opacity: 0.4; pointer-events: none; }
+
+    /* Bouton nouvelle partie */
+    .btn-new-game {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 7px;
+      font-size: 13.5px;
+      cursor: pointer;
+      background: #2471a3;
+      color: white;
+      font-weight: bold;
+      margin-top: 2px;
+      transition: background .15s;
+    }
+    .btn-new-game:hover { background: #2e86c1; }
+
+    /* ═══════════════════════════════════
+       VUE ÉDITION
+    ═══════════════════════════════════ */
+    #editView { display: none; }
+
+    .edit-layout {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+    }
+
+    .edit-left {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 148px;
+      padding-top: 8px;
+    }
+    .edit-left button {
+      width: 100%;
+      padding: 9px 8px;
+      border: none;
+      border-radius: 7px;
+      font-size: 13px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background .15s;
+    }
+
+    .edit-center {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .edit-palette {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      position: relative;
+      z-index: 10;
+    }
+    .pal-btn {
+      padding: 7px 16px;
+      border: 3px solid transparent;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: bold;
+    }
+    .pal-btn.active { border-color: white; }
+    .pal-erase { background: #7f8c8d; color: white; }
+    .pal-rouge { background: #c0392b; color: white; }
+    .pal-jaune { background: #d4ac0d; color: #2c3e50; }
+    .pal-toggle { background: linear-gradient(90deg, #c0392b 50%, #d4ac0d 50%); color: white; padding: 7px 10px; }
+
+    .edit-right {
+      width: 196px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .edit-first {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .edit-start {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    .edit-start button {
+      width: 100%;
+      padding: 9px 10px;
+      border: none;
+      border-radius: 7px;
+      font-size: 12.5px;
+      cursor: pointer;
+      background: #2471a3;
+      color: white;
+      font-weight: bold;
+      transition: background .15s;
+      text-align: left;
+    }
+    .edit-start button:hover { background: #2e86c1; }
+
+    #editMessage {
+      text-align: center;
+      min-height: 20px;
+      margin-top: 4px;
+      color: #e74c3c;
+      font-weight: bold;
+      font-size: 13px;
+      width: 432px;
+    }
+
     #editSavesSection {
-      margin-top: 10px;
+      margin-top: 6px;
       border-top: 1px solid #4a6278;
       padding-top: 8px;
+      width: 432px;
     }
     #editSavesSection h4 {
       margin: 0 0 6px 0;
-      font-size: 13px;
+      font-size: 12px;
       color: #bdc3c7;
       text-align: center;
     }
-    #editSavesList {
-      max-height: 140px;
-      overflow-y: auto;
-    }
+    #editSavesList { max-height: 130px; overflow-y: auto; }
     .esave-item {
       display: flex;
       justify-content: space-between;
@@ -189,7 +366,7 @@
       background: #2c3e50;
       border-radius: 4px;
       margin: 3px 0;
-      font-size: 13px;
+      font-size: 12px;
     }
     .esave-item span { color: #ecf0f1; }
     .esave-item .esave-btns { display: flex; gap: 4px; }
@@ -198,186 +375,319 @@
       border: none;
       border-radius: 4px;
       cursor: pointer;
-      font-size: 12px;
+      font-size: 11px;
     }
     .esave-load { background: #27ae60; color: white; }
     .esave-del  { background: #c0392b; color: white; }
 
+    /* ═══════════════════════════════════
+       NOTE MODE CHANGE
+    ═══════════════════════════════════ */
+    #modeChangeNote {
+      font-size: 11px;
+      color: #f39c12;
+      text-align: center;
+      min-height: 14px;
+    }
   </style>
 </head>
 <body>
-  <div class="card">
-    <div id="menuView" class="menu">
-      <h1>PUISSANCE 4</h1>
-      <button class="btn-default" id="btnMode1">Joueur vs Joueur</button>
-      <button class="btn-default" id="btnMode4">Joueur vs IA (Aléatoire)</button>
-      <button class="btn-default" id="btnMode2">Joueur vs IA (Minimax)</button>
-      <button class="btn-default" id="btnMode3">IA vs IA</button>
-      <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin:6px 0;">
-        <label for="menuDepthInput" style="font-size:14px;">Profondeur IA</label>
-        <input type="range" id="menuDepthInput" min="1" max="9" value="9" style="width:150px;" />
-        <span id="menuDepthValue" style="font-weight:bold;min-width:16px;">9</span>
-      </div>
-      <button class="btn-secondary" id="btnLoad">Charger la partie</button>
-      <button class="btn-secondary" id="btnEditMode">✏ Mode Édition</button>
-    </div>
+  <!-- ══════════════════════════════════════════
+       VUE PRINCIPALE (3 colonnes)
+  ══════════════════════════════════════════ -->
+  <div id="mainView">
+    <div class="game-layout">
 
-    <!-- ===== VUE ÉDITION ===== -->
-    <div id="editView">
-      <div class="toolbar">
-        <div class="left-controls controls">
-          <button class="btn-secondary" id="btnEditBack">← Menu</button>
-          <button class="btn-secondary" id="btnEditClear">Effacer tout</button>
-          <button class="btn-default"   id="btnEditSave">💾 Sauvegarder</button>
-          <span style="font-size:13px;color:#bdc3c7;">Clic : cycle vide→rouge→jaune</span>
+      <!-- ── Panneau gauche ── -->
+      <div class="left-panel">
+        <h1>PUISSANCE 4</h1>
+        <button id="btnLoad">📂 Charger partie</button>
+        <button id="btnEditMode">✏ &nbsp;Mode Édition</button>
+        <button id="btnBDD" onclick="window.location.href='/bdd'" style="background:#34495e;color:white;">🗄 Base de données</button>
+      </div>
+
+      <!-- ── Plateau ── -->
+      <div class="board-area">
+        <div class="board-toolbar">
+          <button id="btnUndo" title="Annuler" disabled>&#8592;</button>
+          <button id="btnRedo" title="Refaire" disabled>&#8594;</button>
+          <button id="btnSave" disabled>💾 SAVE</button>
+          <button id="btnAbandon" class="btn-danger" disabled>ABANDON</button>
+          <span id="status">Démarrez une nouvelle partie →</span>
+        </div>
+
+        <canvas id="gameCanvas" width="432" height="512"></canvas>
+
+        <div id="message"></div>
+
+      </div>
+
+      <!-- ── Panneau droit ── -->
+      <div class="right-panel">
+
+        <!-- Mode de jeu -->
+        <div class="r-section">
+          <p class="r-label">Mode de jeu</p>
+          <button class="mode-btn active" data-mode="1">👥 Joueur vs Joueur</button>
+          <button class="mode-btn" data-mode="4">🎲 Joueur vs IA (Aléatoire)</button>
+          <button class="mode-btn" data-mode="2">🤖 Joueur vs IA (Minimax)</button>
+          <button class="mode-btn" data-mode="3">⚡ IA vs IA</button>
+          <div id="predictionIA" style="display:none;margin-top:6px;padding:6px 8px;border-radius:6px;font-size:12px;font-weight:bold;text-align:center;"></div>
+          <div id="modeChangeNote"></div>
+        </div>
+
+        <!-- Qui commence -->
+        <div class="r-section" id="commenceSection">
+          <p class="r-label">Qui commence</p>
+          <div class="toggle-group">
+            <button class="toggle-btn sel-rouge" data-commence="1">● Rouge</button>
+            <button class="toggle-btn" data-commence="2">● Jaune</button>
+          </div>
+        </div>
+
+        <!-- Je joue (uniquement JvIA) -->
+        <div class="r-section" id="jeJoueSection" style="display:none;">
+          <p class="r-label">Je joue</p>
+          <div class="toggle-group">
+            <button class="toggle-btn sel-rouge" data-human="1">● Rouge</button>
+            <button class="toggle-btn" data-human="2">● Jaune</button>
+          </div>
+        </div>
+
+        <!-- Profondeur IA -->
+        <div class="r-section depth-section-wrap" id="depthSection">
+          <p class="r-label">Profondeur IA</p>
+          <div class="depth-row">
+            <input type="range" id="depthInput" min="1" max="9" value="9" />
+            <span id="depthValue">9</span>
+          </div>
+        </div>
+
+        <!-- Nouvelle partie -->
+        <button class="btn-new-game" id="btnNewGame">▶ Nouvelle partie</button>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       VUE ÉDITION
+  ══════════════════════════════════════════ -->
+  <div id="editView">
+    <div class="edit-layout">
+
+      <!-- Gauche éditeur -->
+      <div class="edit-left">
+        <button id="btnEditBack" style="background:#95a5a6;color:#2c3e50;">← Retour</button>
+        <button id="btnEditClear" style="background:#c0392b;color:white;">🗑 Effacer tout</button>
+        <button id="btnEditSave" style="background:#27ae60;color:white;">💾 Sauvegarder</button>
+      </div>
+
+      <!-- Canvas éditeur -->
+      <div class="edit-center">
+        <div class="edit-palette">
+          <button class="pal-btn pal-erase" id="palErase">Effacer</button>
+          <button class="pal-btn pal-rouge active" id="palRouge">● Rouge</button>
+          <button class="pal-btn pal-jaune" id="palJaune">● Jaune</button>
+          <button class="pal-btn pal-toggle" id="palToggle">Alterne</button>
+        </div>
+        <canvas id="editCanvas" width="432" height="462"
+                style="display:block;background:blue;border-radius:4px;cursor:pointer;"></canvas>
+        <div id="editMessage"></div>
+        <div id="editSavesSection">
+          <h4>Positions sauvegardées</h4>
+          <div id="editSavesList"></div>
         </div>
       </div>
 
-      <div class="edit-palette">
-        <button class="pal-btn pal-erase" id="palErase">Effacer</button>
-        <button class="pal-btn pal-rouge active" id="palRouge">● Rouge</button>
-        <button class="pal-btn pal-jaune" id="palJaune">● Jaune</button>
-      </div>
+      <!-- Droite éditeur -->
+      <div class="edit-right">
 
-      <canvas id="editCanvas" width="540" height="570"
-              style="display:block;margin:0 auto;background:blue;border-radius:4px;cursor:pointer;"></canvas>
-
-      <div class="edit-first">
-        <span>Commence :</span>
-        <button class="pal-btn pal-rouge active" id="editFirst1">Rouge</button>
-        <button class="pal-btn pal-jaune" id="editFirst2">Jaune</button>
-      </div>
-
-      <div class="edit-start">
-        <button id="btnEditJvJ">Joueur vs Joueur</button>
-        <button id="btnEditJvIA">Joueur vs IA (Minimax)</button>
-        <button id="btnEditIAvIA">IA vs IA</button>
-      </div>
-
-      <div id="editMessage" style="text-align:center;min-height:20px;margin-top:6px;color:#e74c3c;font-weight:bold;"></div>
-
-      <div id="editSavesSection">
-        <h4>Positions sauvegardées</h4>
-        <div id="editSavesList"></div>
-      </div>
-    </div>
-
-    <div id="gameView">
-      <div class="toolbar">
-        <div class="left-controls controls">
-          <button class="btn-default" id="btnUndo" title="Annuler">&#8592;</button>
-          <button class="btn-default" id="btnRedo" title="Rejouer">&#8594;</button>
-          <button class="btn-default" id="btnSave">SAVE</button>
-          <button class="btn-default" id="btnAbandon">ABANDON</button>
-          <span id="status"></span>
+        <div class="r-section edit-first">
+          <p class="r-label">Commence</p>
+          <div class="toggle-group">
+            <button class="toggle-btn sel-rouge" id="editFirst1">● Rouge</button>
+            <button class="toggle-btn" id="editFirst2">● Jaune</button>
+          </div>
         </div>
 
-      </div>
+        <div class="edit-start">
+          <p class="r-label" style="margin-bottom:2px;">Lancer avec</p>
+          <button id="btnEditJvJ">👥 Joueur vs Joueur</button>
+          <button id="btnEditJvIA">🤖 Joueur vs IA (Minimax)</button>
+          <button id="btnEditIAvIA">⚡ IA vs IA</button>
+        </div>
 
-      <canvas id="gameCanvas" width="540" height="620"></canvas>
-
-
-
-      <div id="message"></div>
-
-      <div id="endActions" class="end-actions">
-        <button class="btn-default" id="btnReplay">REJOUER</button>
-        <button class="btn-dark" id="btnReturnMenu">RETOUR MENU</button>
       </div>
     </div>
   </div>
 
   <script>
-    const NB_LIGNES = 9;
+    // ═══════════════════════════════════════════════════
+    //  CONSTANTES
+    // ═══════════════════════════════════════════════════
+    const NB_LIGNES   = 9;
     const NB_COLONNES = 9;
-    const TAILLE_CASE = 60;
+    const TAILLE_CASE = 48;
 
-    const menuView = document.getElementById('menuView');
-    const gameView = document.getElementById('gameView');
-    const gameCanvas = document.getElementById('gameCanvas');
-    const ctx = gameCanvas.getContext('2d');
-    const statusEl = document.getElementById('status');
-    const messageEl = document.getElementById('message');
-    const endActions = document.getElementById('endActions');
-    const menuDepthInput = document.getElementById('menuDepthInput');
-    const menuDepthValue = document.getElementById('menuDepthValue');
+    // ═══════════════════════════════════════════════════
+    //  RÉFÉRENCES DOM
+    // ═══════════════════════════════════════════════════
+    const mainView    = document.getElementById('mainView');
+    const editView    = document.getElementById('editView');
+    const gameCanvas  = document.getElementById('gameCanvas');
+    const ctx         = gameCanvas.getContext('2d');
+    const statusEl    = document.getElementById('status');
+    const messageEl   = document.getElementById('message');
+    const depthInput  = document.getElementById('depthInput');
+    const depthValue  = document.getElementById('depthValue');
+    const modeChangeNote = document.getElementById('modeChangeNote');
 
-    let state = null;
-    let iaTimer = null;
-    let aiRequestInFlight = false;
-    let playerVsAiTimeout = null;
+    // ═══════════════════════════════════════════════════
+    //  ÉTAT
+    // ═══════════════════════════════════════════════════
+    let state              = null;
+    let iaTimer            = null;
+    let aiRequestInFlight  = false;
+    let playerVsAiTimeout  = null;
     const SAVES_KEY = 'puissance4_saves';
 
-    const pionsGagnantsSet = () => new Set((state?.pions_gagnants || []).map(([l, c]) => `${l}-${c}`));
+    // Paramètres UI (avant/indépendants de la partie)
+    let selMode     = 1;   // mode sélectionné dans le panneau
+    let selCommence = 1;   // 1=rouge, 2=jaune
+    let selHuman    = 1;   // 1=rouge, 2=jaune  (JvIA uniquement)
+    let selDepth    = 9;
 
-    function setViewGame(isGame) {
-      menuView.style.display = isGame ? 'none' : 'block';
-      gameView.style.display = isGame ? 'block' : 'none';
-      if (!isGame && iaTimer) {
-        clearInterval(iaTimer);
-        iaTimer = null;
-      }
-      if (!isGame && playerVsAiTimeout) {
-        clearTimeout(playerVsAiTimeout);
-        playerVsAiTimeout = null;
-      }
-      if (!isGame) {
-        aiRequestInFlight = false;
-      }
+    // ═══════════════════════════════════════════════════
+    //  GAME ID  (isolé par onglet via sessionStorage)
+    // ═══════════════════════════════════════════════════
+    let gameId = sessionStorage.getItem('game_id') || null;
+
+    function saveGameId(gid) {
+      gameId = gid;
+      if (gid) sessionStorage.setItem('game_id', gid);
+      else sessionStorage.removeItem('game_id');
     }
 
-    async function returnToMenu(clearServerState = true) {
-      if (clearServerState) {
-        await api('/api/clear_state', 'POST');
-      }
-      setViewGame(false);
-      state = null;
-      statusEl.textContent = '';
-      messageEl.textContent = '';
-    }
-
+    // ═══════════════════════════════════════════════════
+    //  API HELPER
+    // ═══════════════════════════════════════════════════
     async function api(url, method = 'GET', body = null) {
+      // Injecter le gid automatiquement
+      if (method === 'GET') {
+        const sep = url.includes('?') ? '&' : '?';
+        if (gameId) url = url + sep + 'gid=' + encodeURIComponent(gameId);
+      } else {
+        body = body || {};
+        if (gameId) body.gid = gameId;
+      }
       const opts = { method, headers: { 'Content-Type': 'application/json' } };
-      if (body) opts.body = JSON.stringify(body);
+      if (method !== 'GET') opts.body = JSON.stringify(body);
       const res = await fetch(url, opts);
       return await res.json();
     }
 
+    // ═══════════════════════════════════════════════════
+    //  SAUVEGARDES LOCALES
+    // ═══════════════════════════════════════════════════
     function getSavedGames() {
       const raw = localStorage.getItem(SAVES_KEY);
       if (!raw) return [];
-      try {
-        const parsed = JSON.parse(raw);
-        return Array.isArray(parsed) ? parsed : [];
-      } catch {
-        return [];
-      }
+      try { const p = JSON.parse(raw); return Array.isArray(p) ? p : []; }
+      catch { return []; }
     }
-
     function setSavedGames(saves) {
       localStorage.setItem(SAVES_KEY, JSON.stringify(saves));
     }
 
-    function updateStatus() {
-      if (!state) return;
-      if (state.jeu_en_cours) {
-        const color = state.jeton_actuel === 1 ? 'red' : 'yellow';
-        statusEl.style.color = color;
-        statusEl.textContent = `Tour du Joueur ${state.jeton_actuel}`;
-        endActions.style.display = 'none';
-      } else {
-        statusEl.style.color = 'white';
-        statusEl.textContent = 'PARTIE TERMINÉE';
-        endActions.style.display = 'flex';
-      }
-
+    // ═══════════════════════════════════════════════════
+    //  VUES
+    // ═══════════════════════════════════════════════════
+    function showMainView() {
+      mainView.style.display = 'block';
+      editView.style.display = 'none';
+    }
+    function showEditView() {
+      mainView.style.display = 'none';
+      editView.style.display = 'block';
     }
 
-    function drawBoard() {
-      if (!state) return;
-      ctx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
+    // ═══════════════════════════════════════════════════
+    //  PANNEAU DROIT — mise à jour UI
+    // ═══════════════════════════════════════════════════
+    function syncRightPanel() {
+      const gameActive = state && state.jeu_en_cours;
+      const curMode    = gameActive ? state.mode : selMode;
 
-      // Fond bleu
+      // --- Boutons de mode ---
+      document.querySelectorAll('.mode-btn').forEach(btn => {
+        btn.classList.toggle('active', parseInt(btn.dataset.mode) === curMode);
+      });
+
+      // --- Section "Je joue" (visible seulement en JvIA) ---
+      const isVsIA = (curMode === 2 || curMode === 4);
+      document.getElementById('jeJoueSection').style.display = isVsIA ? 'flex' : 'none';
+
+      // --- Profondeur (dimmed pour JvJ et JvIA aléatoire) ---
+      const depthUseful = (curMode === 2 || curMode === 3);
+      document.getElementById('depthSection').classList.toggle('dimmed', !depthUseful || gameActive);
+      depthInput.disabled = !depthUseful || gameActive;
+
+      // --- Désactiver commence + jeJoue pendant la partie ---
+      const lockNewGameOpts = !!gameActive;
+      document.querySelectorAll('[data-commence]').forEach(b => { b.disabled = lockNewGameOpts; });
+      document.querySelectorAll('[data-human]').forEach(b => { b.disabled = lockNewGameOpts; });
+
+      // --- Mettre à jour profondeur depuis l'état en cours ---
+      if (state) {
+        const d = state.profondeur_ia || 9;
+        depthInput.value = d;
+        depthValue.textContent = d;
+        selDepth = d;
+      } else {
+        depthInput.value = selDepth;
+        depthValue.textContent = selDepth;
+      }
+
+      // --- Mise à jour des selHuman/selCommence depuis l'état restauré ---
+      if (gameActive) {
+        selMode  = state.mode;
+        selHuman = state.human_jeton || 1;
+        refreshCommenceButtons();
+        refreshHumanButtons();
+      }
+    }
+
+    function refreshCommenceButtons() {
+      document.querySelectorAll('[data-commence]').forEach(btn => {
+        const val = parseInt(btn.dataset.commence);
+        btn.classList.remove('sel-rouge', 'sel-jaune');
+        if (val === selCommence) btn.classList.add(val === 1 ? 'sel-rouge' : 'sel-jaune');
+      });
+    }
+
+    function refreshHumanButtons() {
+      document.querySelectorAll('[data-human]').forEach(btn => {
+        const val = parseInt(btn.dataset.human);
+        btn.classList.remove('sel-rouge', 'sel-jaune');
+        if (val === selHuman) btn.classList.add(val === 1 ? 'sel-rouge' : 'sel-jaune');
+      });
+    }
+
+    function refreshModeButtons() {
+      document.querySelectorAll('.mode-btn').forEach(btn => {
+        btn.classList.toggle('active', parseInt(btn.dataset.mode) === selMode);
+      });
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  DESSIN DU PLATEAU
+    // ═══════════════════════════════════════════════════
+    const pionsGagnantsSet = () =>
+      new Set((state?.pions_gagnants || []).map(([l, c]) => `${l}-${c}`));
+
+    function drawBoard() {
+      ctx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
       ctx.fillStyle = 'blue';
       ctx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
 
@@ -386,20 +696,19 @@
       ctx.font = 'bold 14px Arial';
       ctx.textAlign = 'center';
       for (let c = 0; c < NB_COLONNES; c++) {
-        const x = c * TAILLE_CASE + TAILLE_CASE / 2;
-        ctx.fillText(String(c + 1), x, 18);
+        ctx.fillText(String(c + 1), c * TAILLE_CASE + TAILLE_CASE / 2, 18);
       }
 
+      const plateau = state ? state.plateau : null;
       const gagnants = pionsGagnantsSet();
 
-      // Cases + pions
       for (let l = 0; l < NB_LIGNES; l++) {
         for (let c = 0; c < NB_COLONNES; c++) {
           const x1 = c * TAILLE_CASE;
           const y1 = l * TAILLE_CASE + 30;
           const cx = x1 + TAILLE_CASE / 2;
           const cy = y1 + TAILLE_CASE / 2;
-          const val = state.plateau[l][c];
+          const val = plateau ? plateau[l][c] : 0;
 
           let color = 'white';
           if (val === 1) color = 'red';
@@ -423,300 +732,381 @@
         }
       }
 
-      // Marqueur dernier coup joué : bord noir épais
-      const hist = state.historique;
-      if (hist && hist.length > 0) {
-        const [lastL, lastC] = hist[hist.length - 1];
-        const lx = lastC * TAILLE_CASE + TAILLE_CASE / 2;
-        const ly = lastL * TAILLE_CASE + 30 + TAILLE_CASE / 2;
-        ctx.beginPath();
-        ctx.arc(lx, ly, TAILLE_CASE / 2 - 2, 0, Math.PI * 2);
-        ctx.lineWidth = 4;
-        ctx.strokeStyle = 'black';
-        ctx.stroke();
-      }
+      // Marqueur dernier coup
+      if (state) {
+        const hist = state.historique;
+        if (hist && hist.length > 0) {
+          const [lastL, lastC] = hist[hist.length - 1];
+          const lx = lastC * TAILLE_CASE + TAILLE_CASE / 2;
+          const ly = lastL * TAILLE_CASE + 30 + TAILLE_CASE / 2;
+          ctx.beginPath();
+          ctx.arc(lx, ly, TAILLE_CASE / 2 - 2, 0, Math.PI * 2);
+          ctx.lineWidth = 4;
+          ctx.strokeStyle = 'black';
+          ctx.stroke();
+        }
 
-      // Scores colonnes bas (normalisés 1–10)
-      const rawScores = state.scores_colonnes || [];
-      const validScores = rawScores.filter(s => s !== null && s !== undefined);
-      if (validScores.length > 0) {
-        const minS = Math.min(...validScores);
-        const maxS = Math.max(...validScores);
-        const range = maxS - minS;
-
-        for (let c = 0; c < NB_COLONNES; c++) {
-          const score = rawScores[c];
-          if (score === null || score === undefined) continue;
-
-          const note = range === 0 ? 5 : Math.round(1 + (score - minS) / range * 9);
-
-          let color = '#f39c12';
-          if (note >= 8) color = '#2ecc71';
-          else if (note <= 3) color = '#e74c3c';
-
-          const x = c * TAILLE_CASE + TAILLE_CASE / 2;
-          const y = NB_LIGNES * TAILLE_CASE + 45;
-
-          ctx.fillStyle = color;
-          ctx.font = 'bold 14px Arial';
-          ctx.fillText(String(note), x, y);
+        // Scores colonnes (normalisés 1-10)
+        const rawScores = state.scores_colonnes || [];
+        const validScores = rawScores.filter(s => s !== null && s !== undefined);
+        if (validScores.length > 0) {
+          const minS = Math.min(...validScores);
+          const maxS = Math.max(...validScores);
+          const range = maxS - minS;
+          for (let c = 0; c < NB_COLONNES; c++) {
+            const score = rawScores[c];
+            if (score === null || score === undefined) continue;
+            const note = range === 0 ? 5 : Math.round(1 + (score - minS) / range * 9);
+            let color = '#f39c12';
+            if (note >= 8) color = '#2ecc71';
+            else if (note <= 3) color = '#e74c3c';
+            const x = c * TAILLE_CASE + TAILLE_CASE / 2;
+            const y = NB_LIGNES * TAILLE_CASE + 45;
+            ctx.fillStyle = color;
+            ctx.font = 'bold 14px Arial';
+            ctx.fillText(String(note), x, y);
+          }
         }
       }
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  STATUT & BOUTONS NAV
+    // ═══════════════════════════════════════════════════
+    function colorName(jeton) { return jeton === 1 ? 'ROUGE' : 'JAUNE'; }
+
+    function updateStatus() {
+      const btnUndo   = document.getElementById('btnUndo');
+      const btnRedo   = document.getElementById('btnRedo');
+      const btnSave   = document.getElementById('btnSave');
+      const btnAbandon= document.getElementById('btnAbandon');
+
+      if (!state) {
+        statusEl.style.color = 'white';
+        statusEl.textContent = 'Démarrez une nouvelle partie →';
+        btnUndo.disabled = btnRedo.disabled = btnSave.disabled = btnAbandon.disabled = true;
+        return;
+      }
+
+      btnUndo.disabled   = !state.historique || state.historique.length === 0;
+      btnRedo.disabled   = !state.historique_futur || state.historique_futur.length === 0;
+      btnSave.disabled   = !state.jeu_en_cours;
+      btnAbandon.disabled= !state.jeu_en_cours;
+
+      if (state.jeu_en_cours) {
+        statusEl.style.color = state.jeton_actuel === 1 ? '#e74c3c' : '#f1c40f';
+        const humanJeton = state.human_jeton || 1;
+        const isHumanTurn = (state.mode === 1) ||
+                            (state.mode === 3 ? false :
+                             state.jeton_actuel === humanJeton);
+        const who = (state.mode === 1) ? `Tour ${colorName(state.jeton_actuel)}`
+                  : (state.mode === 3) ? `IA joue (${colorName(state.jeton_actuel)})`
+                  : isHumanTurn ? `Votre tour (${colorName(state.jeton_actuel)})`
+                  : `IA réfléchit… (${colorName(state.jeton_actuel)})`;
+        statusEl.textContent = who;
+      } else {
+        statusEl.style.color = 'white';
+        statusEl.textContent = 'PARTIE TERMINÉE';
+      }
+    }
+
+    function updatePrediction() {
+      const el = document.getElementById('predictionIA');
+      const score = state?.dernier_score_ia;
+      const usesMinimax = state?.mode === 2 || state?.mode === 3;
+
+      if (!state || !usesMinimax || score === undefined || score === 0 && state.historique?.length === 0) {
+        el.style.display = 'none';
+        return;
+      }
+
+      let texte, bg, color;
+      if (score >= 500000) {
+        texte = '🏆 Victoire probable';
+        bg = '#1e8449'; color = 'white';
+      } else if (score <= -500000) {
+        texte = '💀 Défaite probable';
+        bg = '#922b21'; color = 'white';
+      } else if (score > -300 && score < 300) {
+        texte = '🤝 Nul probable';
+        bg = '#7d6608'; color = 'white';
+      } else {
+        texte = '❓ Incertain';
+        bg = '#1a5276'; color = 'white';
+      }
+
+      el.textContent = texte;
+      el.style.background = bg;
+      el.style.color = color;
+      el.style.display = 'block';
     }
 
     function renderAll() {
       updateStatus();
       drawBoard();
-      updateNavButtons();
+      syncRightPanel();
+      updatePrediction();
+
       if (!state?.jeu_en_cours && state?.pions_gagnants?.length) {
-        const gagnant = state.jeton_actuel === 1 ? 'ROUGE' : 'JAUNE';
-        messageEl.textContent = `Victoire du joueur ${gagnant}`;
+        const gagnant = colorName(state.jeton_actuel);
+        messageEl.textContent = `Victoire ${gagnant} !`;
+        messageEl.style.color = state.jeton_actuel === 1 ? '#e74c3c' : '#f1c40f';
       } else {
         messageEl.textContent = '';
+        messageEl.style.color = '';
       }
     }
 
-    async function startGame(mode) {
-      const menuDepth = Number(menuDepthInput.value);
-      const data = await api('/api/new_game', 'POST', { mode });
-      if (!data.ok) {
-        alert(data.error || 'Erreur création partie');
-        return;
+    // ═══════════════════════════════════════════════════
+    //  IA — TOUR ET BOUCLE
+    // ═══════════════════════════════════════════════════
+    function isAiTurn() {
+      if (!state || !state.jeu_en_cours) return false;
+      if (state.mode === 3) return true;
+      if (state.mode === 2 || state.mode === 4) {
+        return state.jeton_actuel !== (state.human_jeton || 1);
       }
-      state = data.state;
-      if (mode !== 1) {
-        const depthData = await api('/api/set_depth', 'POST', { depth: menuDepth });
-        if (depthData.ok) state = depthData.state;
-      }
-      setViewGame(true);
-      renderAll();
-      setupIaLoop();
+      return false;
     }
 
-    function scheduleMode2AiIfNeeded() {
-      if (!state || state.mode !== 2 || !state.jeu_en_cours || state.jeton_actuel !== 2) return;
-      if (playerVsAiTimeout) {
-        clearTimeout(playerVsAiTimeout);
-        playerVsAiTimeout = null;
-      }
-      playerVsAiTimeout = setTimeout(async () => {
-        if (!state || state.mode !== 2 || !state.jeu_en_cours || state.jeton_actuel !== 2) return;
-        if (aiRequestInFlight) return;
-        aiRequestInFlight = true;
-        try {
-          const aiData = await api('/api/ai_move', 'POST');
-          if (!aiData.ok) {
-            messageEl.textContent = aiData.error || "Erreur lors du coup de l'IA";
-            return;
-          }
-          state = aiData.state;
-          renderAll();
-        } finally {
-          aiRequestInFlight = false;
-        }
-      }, 600);
-    }
-
-    async function restoreGameIfAny() {
-      const data = await api('/api/state');
-      if (!data.ok || !data.state) return;
-      if (!data.state.jeu_en_cours) {
-        await api('/api/clear_state', 'POST');
-        return;
-      }
-      state = data.state;
-      setViewGame(true);
-      renderAll();
-      setupIaLoop();
-      scheduleMode2AiIfNeeded();
-    }
-
-    function setupIaLoop() {
-      if (iaTimer) {
-        clearInterval(iaTimer);
-        iaTimer = null;
-      }
-      if (state?.mode === 3 || state?.mode === 4) {
-        iaTimer = setInterval(async () => {
+    function scheduleAiIfNeeded() {
+      if (!state || !state.jeu_en_cours) return;
+      if ((state.mode === 2 || state.mode === 4) && isAiTurn()) {
+        if (playerVsAiTimeout) { clearTimeout(playerVsAiTimeout); playerVsAiTimeout = null; }
+        playerVsAiTimeout = setTimeout(async () => {
+          if (!state || !isAiTurn()) return;
           if (aiRequestInFlight) return;
-          if (!state?.jeu_en_cours) {
-            clearInterval(iaTimer);
-            iaTimer = null;
-            return;
-          }
-          if (state.mode === 4 && state.jeton_actuel !== 2) {
-            return;
-          }
           aiRequestInFlight = true;
           try {
-            const endpoint = state.mode === 3 ? '/api/ai_step' : '/api/ai_move';
-            const data = await api(endpoint, 'POST');
-            if (data.ok) {
-              state = data.state;
-              renderAll();
-            }
-          } finally {
-            aiRequestInFlight = false;
-          }
+            const data = await api('/api/ai_move', 'POST');
+            if (!data.ok) { messageEl.textContent = data.error || "Erreur IA"; return; }
+            if (!state?.jeu_en_cours) return;
+            state = data.state;
+            renderAll();
+          } finally { aiRequestInFlight = false; }
         }, 600);
       }
     }
 
+    function setupIaLoop() {
+      if (iaTimer) { clearInterval(iaTimer); iaTimer = null; }
+      if (state?.mode === 3) {
+        iaTimer = setInterval(async () => {
+          if (aiRequestInFlight || !state?.jeu_en_cours) {
+            if (!state?.jeu_en_cours) { clearInterval(iaTimer); iaTimer = null; }
+            return;
+          }
+          aiRequestInFlight = true;
+          try {
+            const data = await api('/api/ai_step', 'POST');
+            if (data.ok && state?.jeu_en_cours) { state = data.state; renderAll(); }
+          } finally { aiRequestInFlight = false; }
+        }, 600);
+      }
+    }
+
+    function stopAllAi() {
+      if (iaTimer) { clearInterval(iaTimer); iaTimer = null; }
+      if (playerVsAiTimeout) { clearTimeout(playerVsAiTimeout); playerVsAiTimeout = null; }
+      aiRequestInFlight = false;
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  DÉMARRER / RESTAURER PARTIE
+    // ═══════════════════════════════════════════════════
+    async function startGame() {
+      stopAllAi();
+      const mode        = selMode;
+      const humanJeton  = (mode === 2 || mode === 4) ? selHuman : 1;
+      const jetonInit   = selCommence;
+      const depth       = selDepth;
+
+      const data = await api('/api/new_game', 'POST', {
+        mode,
+        human_jeton: humanJeton,
+        jeton_initial: jetonInit,
+      });
+      if (!data.ok) { alert(data.error || 'Erreur création partie'); return; }
+      if (data.gid) saveGameId(data.gid);
+      state = data.state;
+
+      if (mode !== 1) {
+        const depthData = await api('/api/set_depth', 'POST', { depth });
+        if (depthData.ok) state = depthData.state;
+      }
+
+      renderAll();
+      setupIaLoop();
+      scheduleAiIfNeeded();
+      modeChangeNote.textContent = '';
+    }
+
+    async function restoreGameIfAny() {
+      if (!gameId) { drawBoard(); return; }
+      const data = await api('/api/state');
+      if (!data.ok || !data.state) { drawBoard(); return; }
+      if (!data.state.jeu_en_cours) {
+        await api('/api/clear_state', 'POST');
+        saveGameId(null);
+        drawBoard();
+        return;
+      }
+      state = data.state;
+      renderAll();
+      setupIaLoop();
+      scheduleAiIfNeeded();
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  CLIC SUR LE CANVAS
+    // ═══════════════════════════════════════════════════
     gameCanvas.addEventListener('click', async (event) => {
       if (!state || !state.jeu_en_cours) return;
       if (state.mode === 3) return;
+      if (isAiTurn()) return;
 
       const rect = gameCanvas.getBoundingClientRect();
       const x = event.clientX - rect.left;
       const y = event.clientY - rect.top;
-      if (y > NB_LIGNES * TAILLE_CASE + 30) return;
-      if (y < 30) return;
+      if (y < 30 || y > NB_LIGNES * TAILLE_CASE + 30) return;
 
       const col = Math.floor(x / TAILLE_CASE);
       const data = await api('/api/play', 'POST', { col });
-      if (!data.ok) {
-        messageEl.textContent = data.error || 'Coup invalide';
-        return;
-      }
+      if (!data.ok) { messageEl.textContent = data.error || 'Coup invalide'; return; }
       state = data.state;
       renderAll();
+      scheduleAiIfNeeded();
+    });
 
-      if (state.mode === 2 && state.jeu_en_cours && state.jeton_actuel === 2) {
-        scheduleMode2AiIfNeeded();
+    // ═══════════════════════════════════════════════════
+    //  PANNEAU DROIT — événements
+    // ═══════════════════════════════════════════════════
+
+    // Boutons de mode
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const newMode = parseInt(btn.dataset.mode);
+
+        if (state && state.jeu_en_cours) {
+          // Changer de mode en cours de partie
+          stopAllAi();
+          const data = await api('/api/set_mode', 'POST', { mode: newMode });
+          if (!data.ok) { modeChangeNote.textContent = data.error; return; }
+          state = data.state;
+          selMode = newMode;
+          modeChangeNote.textContent = '✓ Mode changé';
+          setTimeout(() => { modeChangeNote.textContent = ''; }, 1800);
+          renderAll();
+          setupIaLoop();
+          scheduleAiIfNeeded();
+        } else {
+          selMode = newMode;
+          refreshModeButtons();
+          syncRightPanel();
+          modeChangeNote.textContent = '';
+        }
+      });
+    });
+
+    // Qui commence
+    document.querySelectorAll('[data-commence]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        selCommence = parseInt(btn.dataset.commence);
+        refreshCommenceButtons();
+      });
+    });
+
+    // Je joue
+    document.querySelectorAll('[data-human]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        selHuman = parseInt(btn.dataset.human);
+        refreshHumanButtons();
+      });
+    });
+
+    // Profondeur
+    depthInput.addEventListener('input', async () => {
+      selDepth = parseInt(depthInput.value);
+      depthValue.textContent = selDepth;
+      if (state && state.jeu_en_cours) {
+        const data = await api('/api/set_depth', 'POST', { depth: selDepth });
+        if (data.ok) { state = data.state; }
       }
     });
 
-    document.getElementById('btnMode1').addEventListener('click', () => startGame(1));
-    document.getElementById('btnMode4').addEventListener('click', () => startGame(4));
-    document.getElementById('btnMode2').addEventListener('click', () => startGame(2));
-    document.getElementById('btnMode3').addEventListener('click', () => startGame(3));
+    // Nouvelle partie
+    document.getElementById('btnNewGame').addEventListener('click', startGame);
 
-    function updateNavButtons() {
-      const btnUndo = document.getElementById('btnUndo');
-      const btnRedo = document.getElementById('btnRedo');
-      if (!state) { btnUndo.disabled = true; btnRedo.disabled = true; return; }
-      btnUndo.disabled = !state.historique || state.historique.length === 0;
-      btnRedo.disabled = !state.historique_futur || state.historique_futur.length === 0;
-    }
-
+    // ═══════════════════════════════════════════════════
+    //  BOUTONS TOOLBAR
+    // ═══════════════════════════════════════════════════
     document.getElementById('btnUndo').addEventListener('click', async () => {
       if (!state) return;
-      if (playerVsAiTimeout) {
-        clearTimeout(playerVsAiTimeout);
-        playerVsAiTimeout = null;
-      }
+      stopAllAi();
       const data = await api('/api/undo', 'POST');
-      if (!data.ok) {
-        messageEl.textContent = data.error || 'Undo impossible';
-        return;
-      }
+      if (!data.ok) { messageEl.textContent = data.error || 'Undo impossible'; return; }
       state = data.state;
       renderAll();
-      updateNavButtons();
     });
 
     document.getElementById('btnRedo').addEventListener('click', async () => {
       if (!state) return;
-      if (playerVsAiTimeout) {
-        clearTimeout(playerVsAiTimeout);
-        playerVsAiTimeout = null;
-      }
+      stopAllAi();
       const data = await api('/api/redo', 'POST');
-      if (!data.ok) {
-        messageEl.textContent = data.error || 'Redo impossible';
-        return;
-      }
+      if (!data.ok) { messageEl.textContent = data.error || 'Redo impossible'; return; }
       state = data.state;
       renderAll();
-      updateNavButtons();
-      if (state.mode === 2 && state.jeu_en_cours && state.jeton_actuel === 2) {
-        scheduleMode2AiIfNeeded();
-      }
+      scheduleAiIfNeeded();
     });
 
     document.getElementById('btnSave').addEventListener('click', async () => {
       if (!state) return;
-
-      // Sauvegarde locale (localStorage) comme avant
       const saves = getSavedGames();
       const savedAt = Date.now();
-      const snapshot = JSON.parse(JSON.stringify(state));
       saves.push({
         id: `${savedAt}-${Math.floor(Math.random() * 100000)}`,
         name: `Partie ${saves.length + 1}`,
         savedAt,
         mode: state.mode,
-        state: snapshot,
+        state: JSON.parse(JSON.stringify(state)),
       });
       setSavedGames(saves);
-
-      // Mise à jour du statut SAVE en base de données
       const data = await api('/api/save', 'POST');
-      if (!data.ok) {
-        messageEl.textContent = data.error || 'Erreur lors de la sauvegarde.';
-        return;
-      }
-
-      // Retour au menu
-      await returnToMenu(true);
-      messageEl.textContent = 'Partie sauvegardée.';
+      if (!data.ok) { messageEl.textContent = data.error || 'Erreur sauvegarde'; return; }
+      stopAllAi();
+      state = null;
+      renderAll();
+      messageEl.textContent = '✓ Partie sauvegardée.';
     });
 
     document.getElementById('btnAbandon').addEventListener('click', async () => {
       if (!state) return;
-      const confirmed = window.confirm('Voulez-vous vraiment abandonner la partie ?');
-      if (!confirmed) return;
+      if (!window.confirm('Voulez-vous vraiment abandonner la partie ?')) return;
+      stopAllAi();
       const data = await api('/api/abandon', 'POST');
-      if (!data.ok) {
-        messageEl.textContent = data.error || 'Abandon impossible';
-        return;
-      }
+      if (!data.ok) { messageEl.textContent = data.error || 'Abandon impossible'; return; }
       state = data.state;
       renderAll();
-      await returnToMenu(true);
-      messageEl.textContent = data.message || 'Partie abandonnée.';
     });
 
-    document.getElementById('btnLoad').addEventListener('click', async () => {
+    document.getElementById('btnLoad').addEventListener('click', () => {
       window.location.href = '/saves';
     });
 
-    document.getElementById('btnReplay').addEventListener('click', async () => {
-      if (!state) return;
-      await startGame(state.mode);
-    });
 
-    document.getElementById('btnReturnMenu').addEventListener('click', () => {
-      returnToMenu(true);
-    });
-
-    menuDepthInput.addEventListener('input', () => {
-      menuDepthValue.textContent = menuDepthInput.value;
-    });
-
-    restoreGameIfAny();
-
-    // =====================================================================
-    // MODE ÉDITION
-    // =====================================================================
-
-    const editView    = document.getElementById('editView');
+    // ═══════════════════════════════════════════════════
+    //  MODE ÉDITION
+    // ═══════════════════════════════════════════════════
     const editCanvas  = document.getElementById('editCanvas');
     const editCtx     = editCanvas.getContext('2d');
     const editMessage = document.getElementById('editMessage');
-
-    const EDIT_OFFSET_Y = 20;   // hauteur réservée aux numéros de colonnes
+    const EDIT_OFFSET_Y = 20;
 
     let editBoard      = null;
-    let editColor      = 1;     // 0=effacer 1=rouge 2=jaune
+    let editColor      = 1;
+    let editAlterne    = false;
+    let editAlterneNext = 1;
     let editFirstJeton = 1;
-
-    // --- Navigation vers la vue édition ---
-    function setViewEdit(on) {
-      menuView.style.display = on ? 'none'  : 'block';
-      editView.style.display = on ? 'block' : 'none';
-      gameView.style.display = 'none';
-    }
 
     function openEditMode() {
       editBoard      = Array.from({length: NB_LIGNES}, () => Array(NB_COLONNES).fill(0));
@@ -725,30 +1115,26 @@
       editMessage.textContent = '';
       refreshEditPalette();
       refreshEditFirst();
-      setViewEdit(true);
+      showEditView();
       drawEditBoard();
       renderEditorSaves();
     }
 
-    // --- Dessin du plateau édition ---
     function drawEditBoard() {
       editCtx.clearRect(0, 0, editCanvas.width, editCanvas.height);
       editCtx.fillStyle = 'blue';
       editCtx.fillRect(0, 0, editCanvas.width, editCanvas.height);
-
       editCtx.fillStyle = 'white';
       editCtx.font = 'bold 14px Arial';
       editCtx.textAlign = 'center';
       for (let c = 0; c < NB_COLONNES; c++) {
         editCtx.fillText(String(c + 1), c * TAILLE_CASE + TAILLE_CASE / 2, 15);
       }
-
       for (let l = 0; l < NB_LIGNES; l++) {
         for (let c = 0; c < NB_COLONNES; c++) {
           const cx = c * TAILLE_CASE + TAILLE_CASE / 2;
           const cy = l * TAILLE_CASE + EDIT_OFFSET_Y + TAILLE_CASE / 2;
           const val = editBoard[l][c];
-
           editCtx.beginPath();
           editCtx.arc(cx, cy, TAILLE_CASE / 2 - 5, 0, Math.PI * 2);
           editCtx.fillStyle = val === 1 ? 'red' : val === 2 ? 'yellow' : 'white';
@@ -760,25 +1146,27 @@
       }
     }
 
-    // --- Palette couleur ---
     function refreshEditPalette() {
-      document.getElementById('palErase').classList.toggle('active', editColor === 0);
-      document.getElementById('palRouge').classList.toggle('active', editColor === 1);
-      document.getElementById('palJaune').classList.toggle('active', editColor === 2);
+      document.getElementById('palErase').classList.toggle('active', !editAlterne && editColor === 0);
+      document.getElementById('palRouge').classList.toggle('active', !editAlterne && editColor === 1);
+      document.getElementById('palJaune').classList.toggle('active', !editAlterne && editColor === 2);
+      document.getElementById('palToggle').classList.toggle('active', editAlterne);
     }
 
     function refreshEditFirst() {
-      document.getElementById('editFirst1').classList.toggle('active', editFirstJeton === 1);
-      document.getElementById('editFirst2').classList.toggle('active', editFirstJeton === 2);
+      document.getElementById('editFirst1').classList.remove('sel-rouge', 'sel-jaune');
+      document.getElementById('editFirst2').classList.remove('sel-rouge', 'sel-jaune');
+      if (editFirstJeton === 1) document.getElementById('editFirst1').classList.add('sel-rouge');
+      else                      document.getElementById('editFirst2').classList.add('sel-jaune');
     }
 
-    document.getElementById('palErase').addEventListener('click', () => { editColor = 0; refreshEditPalette(); });
-    document.getElementById('palRouge').addEventListener('click', () => { editColor = 1; refreshEditPalette(); });
-    document.getElementById('palJaune').addEventListener('click', () => { editColor = 2; refreshEditPalette(); });
+    document.getElementById('palErase').addEventListener('click', () => { editAlterne = false; editColor = 0; refreshEditPalette(); });
+    document.getElementById('palRouge').addEventListener('click', () => { editAlterne = false; editColor = 1; refreshEditPalette(); });
+    document.getElementById('palJaune').addEventListener('click', () => { editAlterne = false; editColor = 2; refreshEditPalette(); });
+    document.getElementById('palToggle').addEventListener('click', () => { editAlterne = !editAlterne; editAlterneNext = 1; refreshEditPalette(); });
     document.getElementById('editFirst1').addEventListener('click', () => { editFirstJeton = 1; refreshEditFirst(); });
     document.getElementById('editFirst2').addEventListener('click', () => { editFirstJeton = 2; refreshEditFirst(); });
 
-    // --- Clic sur le canvas édition ---
     editCanvas.addEventListener('click', (e) => {
       if (!editBoard) return;
       const rect = editCanvas.getBoundingClientRect();
@@ -787,11 +1175,11 @@
       const c = Math.floor(x / TAILLE_CASE);
       const l = Math.floor(y / TAILLE_CASE);
       if (c < 0 || c >= NB_COLONNES || l < 0 || l >= NB_LIGNES) return;
-
-      // Clic gauche : cycle vide→rouge→jaune→vide
-      // Clic avec palette sélectionnée : place la couleur choisie, ou efface si même couleur
       const cur = editBoard[l][c];
-      if (editColor === 0) {
+      if (editAlterne) {
+        editBoard[l][c] = editAlterneNext;
+        editAlterneNext = editAlterneNext === 1 ? 2 : 1;
+      } else if (editColor === 0) {
         editBoard[l][c] = 0;
       } else {
         editBoard[l][c] = cur === editColor ? 0 : editColor;
@@ -800,9 +1188,8 @@
       drawEditBoard();
     });
 
-    // --- Boutons ---
     document.getElementById('btnEditBack').addEventListener('click', () => {
-      setViewEdit(false);
+      showMainView();
     });
 
     document.getElementById('btnEditClear').addEventListener('click', () => {
@@ -817,19 +1204,16 @@
         plateau: editBoard,
         mode,
         jeton_actuel: editFirstJeton,
+        human_jeton: selHuman,
       });
-      if (!data.ok) {
-        editMessage.textContent = data.error || 'Position invalide';
-        return;
-      }
+      if (!data.ok) { editMessage.textContent = data.error || 'Position invalide'; return; }
+      if (data.gid) saveGameId(data.gid);
       state = data.state;
-      setViewEdit(false);
-      setViewGame(true);
+      selMode = mode;
+      showMainView();
       renderAll();
       setupIaLoop();
-      if (mode === 2 && state.jeu_en_cours && state.jeton_actuel === 2) {
-        scheduleMode2AiIfNeeded();
-      }
+      scheduleAiIfNeeded();
     }
 
     document.getElementById('btnEditJvJ').addEventListener('click',   () => lancerDepuisEdition(1));
@@ -837,26 +1221,22 @@
     document.getElementById('btnEditIAvIA').addEventListener('click', () => lancerDepuisEdition(3));
     document.getElementById('btnEditMode').addEventListener('click',  openEditMode);
 
-    // ---- Sauvegarde des positions éditeur (localStorage séparé) ----
-
+    // ── Sauvegardes éditeur ──
     const EDITOR_SAVES_KEY = 'puissance4_editor_saves';
-
     function getEditorSaves() {
       try { return JSON.parse(localStorage.getItem(EDITOR_SAVES_KEY)) || []; }
       catch { return []; }
     }
-    function setEditorSaves(saves) {
-      localStorage.setItem(EDITOR_SAVES_KEY, JSON.stringify(saves));
-    }
+    function setEditorSaves(saves) { localStorage.setItem(EDITOR_SAVES_KEY, JSON.stringify(saves)); }
 
     function renderEditorSaves() {
       const saves = getEditorSaves();
       const el = document.getElementById('editSavesList');
       if (saves.length === 0) {
-        el.innerHTML = '<div style="color:#7f8c8d;font-size:13px;text-align:center;padding:4px;">Aucune position sauvegardée</div>';
+        el.innerHTML = '<div style="color:#7f8c8d;font-size:12px;text-align:center;padding:4px;">Aucune position sauvegardée</div>';
         return;
       }
-      el.innerHTML = saves.map((s, idx) => `
+      el.innerHTML = saves.map(s => `
         <div class="esave-item">
           <span>${s.name}</span>
           <div class="esave-btns">
@@ -885,20 +1265,23 @@
     document.getElementById('btnEditSave').addEventListener('click', () => {
       const saves = getEditorSaves();
       const id = `${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-      saves.push({
-        id,
-        name: `Position ${saves.length + 1}`,
-        savedAt: Date.now(),
-        board: JSON.parse(JSON.stringify(editBoard)),
-        firstJeton: editFirstJeton,
-      });
+      saves.push({ id, name: `Position ${saves.length + 1}`, savedAt: Date.now(),
+                   board: JSON.parse(JSON.stringify(editBoard)), firstJeton: editFirstJeton });
       setEditorSaves(saves);
       renderEditorSaves();
       editMessage.style.color = '#2ecc71';
-      editMessage.textContent = 'Position sauvegardée !';
+      editMessage.textContent = '✓ Position sauvegardée !';
       setTimeout(() => { editMessage.textContent = ''; editMessage.style.color = '#e74c3c'; }, 1500);
     });
 
+    // ═══════════════════════════════════════════════════
+    //  INITIALISATION
+    // ═══════════════════════════════════════════════════
+    refreshCommenceButtons();
+    refreshHumanButtons();
+    refreshModeButtons();
+    syncRightPanel();
+    restoreGameIfAny();
   </script>
 </body>
 </html>

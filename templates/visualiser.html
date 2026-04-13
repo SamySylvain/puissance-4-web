@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Visualisation partie - Puissance 4</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #2c3e50;
+      color: white;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px;
+    }
+
+    h1 { font-size: 20px; margin: 0 0 10px 0; }
+
+    .layout {
+      display: flex;
+      gap: 24px;
+      align-items: flex-start;
+    }
+
+    canvas {
+      display: block;
+      background: blue;
+      border-radius: 6px;
+      flex-shrink: 0;
+    }
+
+    .side-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      padding-top: 8px;
+      min-width: 180px;
+    }
+
+    #info {
+      font-size: 13px;
+      color: #b2bec3;
+      line-height: 1.6;
+    }
+
+    #navBar {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    #navBar button {
+      background: #34495e;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+      width: 100%;
+    }
+    #navBar button:disabled { opacity: 0.35; cursor: default; }
+    #navBar button:not(:disabled):hover { background: #4a6278; }
+
+    #counter {
+      font-size: 15px;
+      font-weight: bold;
+      text-align: center;
+    }
+
+    #msgVictoire {
+      font-size: 16px;
+      font-weight: bold;
+      min-height: 22px;
+      text-align: center;
+    }
+
+    #btnRetour {
+      background: #95a5a6;
+      color: #2c3e50;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      width: 100%;
+      margin-top: auto;
+    }
+    #btnRetour:hover { background: #7f8c8d; }
+  </style>
+</head>
+<body>
+  <h1 id="titre">Visualisation partie</h1>
+
+  <div class="layout">
+    <canvas id="canvas" width="432" height="512"></canvas>
+
+    <div class="side-panel">
+      <div id="info"></div>
+      <div id="counter">coup 0 / 0</div>
+      <div id="navBar">
+        <button id="btnNext">Suivant &#8594;</button>
+        <button id="btnPrev">&#8592; Précédent</button>
+      </div>
+      <div id="msgVictoire"></div>
+      <button id="btnRetour" onclick="window.location.href='/bdd'">&#8592; Retour BDD</button>
+    </div>
+  </div>
+
+  <script>
+    const NB_LIGNES   = 9;
+    const NB_COLONNES = 9;
+    const TAILLE_CASE = 48;
+
+    const canvas = document.getElementById('canvas');
+    const ctx    = canvas.getContext('2d');
+
+    const params   = new URLSearchParams(window.location.search);
+    const idPartie = parseInt(params.get('id'));
+
+    let etapes   = [];
+    let gagnants = [];
+    let cursor   = 0;
+
+    function creerPlateau() {
+      return Array.from({length: NB_LIGNES}, () => Array(NB_COLONNES).fill(0));
+    }
+
+    function poserJeton(plateau, col, jeton) {
+      for (let l = NB_LIGNES - 1; l >= 0; l--) {
+        if (plateau[l][col] === 0) { plateau[l][col] = jeton; return l; }
+      }
+      return -1;
+    }
+
+    function parseGagnants(str) {
+      if (!str || str === 'None' || str === '') return [];
+      try {
+        return JSON.parse(str.replace(/\(/g, '[').replace(/\)/g, ']'));
+      } catch { return []; }
+    }
+
+    function construireEtapes(coups) {
+      const etapes = [];
+      let plateau = creerPlateau();
+      let jeton = 1;
+      etapes.push({ plateau: JSON.parse(JSON.stringify(plateau)), jeton: 1 });
+      for (const ch of coups) {
+        const col = parseInt(ch) - 1;
+        if (col < 0 || col >= NB_COLONNES) continue;
+        const newPlateau = JSON.parse(JSON.stringify(plateau));
+        poserJeton(newPlateau, col, jeton);
+        etapes.push({ plateau: newPlateau, jeton });
+        plateau = newPlateau;
+        jeton = jeton === 1 ? 2 : 1;
+      }
+      return etapes;
+    }
+
+    function drawBoard() {
+      const { plateau } = etapes[cursor];
+      const isLast = cursor === etapes.length - 1;
+      const gagnantsSet = new Set(isLast ? gagnants.map(([l, c]) => `${l}-${c}`) : []);
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = 'blue';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = 'white';
+      ctx.font = 'bold 14px Arial';
+      ctx.textAlign = 'center';
+      for (let c = 0; c < NB_COLONNES; c++) {
+        ctx.fillText(String(c + 1), c * TAILLE_CASE + TAILLE_CASE / 2, 18);
+      }
+
+      for (let l = 0; l < NB_LIGNES; l++) {
+        for (let c = 0; c < NB_COLONNES; c++) {
+          const cx = c * TAILLE_CASE + TAILLE_CASE / 2;
+          const cy = l * TAILLE_CASE + 30 + TAILLE_CASE / 2;
+          const val = plateau[l][c];
+
+          ctx.beginPath();
+          ctx.arc(cx, cy, TAILLE_CASE / 2 - 5, 0, Math.PI * 2);
+          ctx.fillStyle = val === 1 ? 'red' : val === 2 ? 'yellow' : 'white';
+          ctx.fill();
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = 'black';
+          ctx.stroke();
+
+          if (gagnantsSet.has(`${l}-${c}`) && val !== 0) {
+            ctx.beginPath();
+            ctx.arc(cx, cy, TAILLE_CASE / 2 - 2, 0, Math.PI * 2);
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = 'white';
+            ctx.stroke();
+          }
+        }
+      }
+    }
+
+    function updateUI() {
+      const total = etapes.length - 1;
+      document.getElementById('counter').textContent = `Coup ${cursor} / ${total}`;
+      document.getElementById('btnPrev').disabled = cursor <= 0;
+      document.getElementById('btnNext').disabled = cursor >= total;
+
+      const msgEl = document.getElementById('msgVictoire');
+      if (cursor === total && gagnants.length > 0) {
+        const j = etapes[cursor].jeton;
+        msgEl.textContent = `Victoire ${j === 1 ? 'Rouge' : 'Jaune'} !`;
+        msgEl.style.color = j === 1 ? '#e74c3c' : '#f1c40f';
+      } else {
+        msgEl.textContent = '';
+      }
+
+      drawBoard();
+    }
+
+    document.getElementById('btnPrev').addEventListener('click', () => {
+      if (cursor > 0) { cursor--; updateUI(); }
+    });
+    document.getElementById('btnNext').addEventListener('click', () => {
+      if (cursor < etapes.length - 1) { cursor++; updateUI(); }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft' && cursor > 0) { cursor--; updateUI(); }
+      if (e.key === 'ArrowRight' && cursor < etapes.length - 1) { cursor++; updateUI(); }
+    });
+
+    async function charger() {
+      if (!idPartie) { document.getElementById('info').textContent = 'ID manquant.'; return; }
+      const res  = await fetch(`/api/bdd_partie/${idPartie}`);
+      const data = await res.json();
+      if (!data.ok) { document.getElementById('info').textContent = 'Erreur : ' + data.error; return; }
+
+      document.getElementById('titre').textContent = `Partie #${idPartie}`;
+      document.getElementById('info').innerHTML =
+        `Statut : ${data.statut}<br>Coups : ${data.coups.length}`;
+
+      gagnants = parseGagnants(data.gagnants);
+      etapes   = construireEtapes(data.coups);
+      cursor   = etapes.length - 1;
+      updateUI();
+    }
+
+    charger();
+  </script>
+</body>
+</html>

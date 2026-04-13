@@ -246,6 +246,7 @@
           alert(data.error || 'Impossible de charger cette sauvegarde.');
           return;
         }
+        if (data.gid) sessionStorage.setItem('game_id', data.gid);
         window.location.href = '/';
       }
     });

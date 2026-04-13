@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=0.6" />
+  <title>Base de données - Puissance 4</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      font-family: Arial, sans-serif;
+      background: #2c3e50;
+      color: white;
+      box-sizing: border-box;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      padding: 12px 16px;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 18px;
+      margin: 0 0 8px 0;
+      flex-shrink: 0;
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+      flex-shrink: 0;
+    }
+
+    button {
+      border: none;
+      border-radius: 8px;
+      padding: 7px 14px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: bold;
+    }
+
+    .btn-menu        { background: #95a5a6; color: #2c3e50; }
+    .btn-import      { background: #27ae60; color: white; }
+    .btn-import-ssv  { background: #2980b9; color: white; }
+    .btn-export-ssv  { background: #8e44ad; color: white; }
+    .btn-delete      { background: #e74c3c; color: white; }
+    .btn-delete-sel  { background: #e67e22; color: white; }
+    .btn-delete-sel:disabled { opacity: 0.4; cursor: default; }
+
+    .table-wrapper {
+      flex: 1;
+      overflow: auto;
+      min-height: 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #34495e;
+      border-radius: 8px;
+      overflow: hidden;
+      font-size: 12px;
+    }
+
+    thead th {
+      background: #1a252f;
+      padding: 8px 6px;
+      text-align: center;
+      white-space: nowrap;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    tbody tr:nth-child(even) { background: #2c3e50; }
+    tbody tr:hover { background: #3d5166; cursor: pointer; }
+    tbody tr.selected { background: #1a6fa8 !important; }
+
+    td {
+      padding: 6px;
+      text-align: center;
+      border-bottom: 1px solid #4a6278;
+      max-width: 180px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .empty {
+      text-align: center;
+      padding: 20px;
+      color: #b2bec3;
+    }
+
+    #pagination {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 8px 0 4px;
+      flex-shrink: 0;
+    }
+
+    #pagination button {
+      background: #4a6278;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 16px;
+      font-size: 13px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    #pagination button:disabled { opacity: 0.3; cursor: default; }
+    #pagination button:not(:disabled):hover { background: #5d7a94; }
+
+    #pageInfo {
+      font-size: 13px;
+      color: #b2bec3;
+      min-width: 160px;
+      text-align: center;
+    }
+
+    #msgZone {
+      text-align: center;
+      margin-bottom: 6px;
+      font-size: 13px;
+      color: #2ecc71;
+      min-height: 18px;
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>BASE DE DONNÉES</h1>
+
+  <div id="msgZone"></div>
+
+  <div class="top-actions">
+    <button class="btn-menu" onclick="window.location.href='/'">&#8592; RETOUR MENU</button>
+    <button class="btn-import" id="btnImport">Importer une partie (.txt)</button>
+    <input type="file" id="fileInput" accept=".txt" style="display:none" />
+    <button class="btn-import-ssv" id="btnImportSSV">Importer une bdd (.ssv)</button>
+    <input type="file" id="fileInputSSV" accept=".ssv" style="display:none" />
+    <button class="btn-export-ssv" id="btnExportSSV">Exporter la bdd</button>
+    <button class="btn-delete-sel" id="btnDeleteSel" disabled>Supprimer la sélection</button>
+    <button class="btn-delete" id="btnDeleteAll">DELETE ALL</button>
+    <span style="font-size:12px;color:#95a5a6;align-self:center;margin-left:auto;">Double-clic pour visualiser une partie</span>
+  </div>
+
+  <div class="table-wrapper">
+    <table id="bddTable">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Coups</th>
+          <th>Mode</th>
+          <th>Statut</th>
+          <th>Pions Gagnants</th>
+          <th>A (Préc.)</th>
+          <th>N (Suiv.)</th>
+          <th>Symétrie</th>
+        </tr>
+      </thead>
+      <tbody id="bddBody">
+        <tr><td colspan="9" class="empty">Chargement...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div id="pagination">
+    <button id="btnPrev">&#8592; Précédent</button>
+    <span id="pageInfo">—</span>
+    <button id="btnNext">Suivant &#8594;</button>
+  </div>
+
+  <script>
+    async function api(url, method = 'GET', body = null) {
+      const opts = { method, headers: { 'Content-Type': 'application/json' } };
+      if (body) opts.body = JSON.stringify(body);
+      const res = await fetch(url, opts);
+      return res.json();
+    }
+
+    function modeLabel(m) {
+      if (m === 1) return 'J vs J';
+      if (m === 2) return 'J vs IA';
+      if (m === 3) return 'IA vs IA';
+      if (m === 4) return 'J vs IA (aléa)';
+      return `Mode ${m}`;
+    }
+
+    const PAGE_SIZE = 100;
+    let currentOffset = 0;
+    let totalParties  = 0;
+    let selectedId    = null;
+
+    function setSelected(tr, id) {
+      document.querySelectorAll('#bddBody tr.selected').forEach(r => r.classList.remove('selected'));
+      if (selectedId === id) {
+        selectedId = null;
+        document.getElementById('btnDeleteSel').disabled = true;
+      } else {
+        selectedId = id;
+        tr.classList.add('selected');
+        document.getElementById('btnDeleteSel').disabled = false;
+      }
+    }
+
+    function majPagination() {
+      const pageCourante = Math.floor(currentOffset / PAGE_SIZE) + 1;
+      const nbPages      = Math.max(1, Math.ceil(totalParties / PAGE_SIZE));
+      document.getElementById('pageInfo').textContent =
+        `Page ${pageCourante} / ${nbPages}  (${totalParties} parties)`;
+      document.getElementById('btnPrev').disabled = currentOffset <= 0;
+      document.getElementById('btnNext').disabled = currentOffset + PAGE_SIZE >= totalParties;
+    }
+
+    async function charger(offset = currentOffset) {
+      selectedId = null;
+      currentOffset = offset;
+      document.getElementById('btnDeleteSel').disabled = true;
+      const data = await api(`/api/bdd_parties?limit=${PAGE_SIZE}&offset=${offset}`);
+      const tbody = document.getElementById('bddBody');
+      if (!data.ok) {
+        tbody.innerHTML = `<tr><td colspan="9" class="empty">Erreur : ${data.error}</td></tr>`;
+        return;
+      }
+      totalParties = data.total || 0;
+      majPagination();
+      if (data.parties.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="empty">Aucune partie en base de données.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = data.parties.map(p => `
+        <tr data-id="${p.id}">
+          <td>${p.id}</td>
+          <td title="${p.coups}">${p.coups}</td>
+          <td>${modeLabel(p.mode)}</td>
+          <td>${p.statut}</td>
+          <td title="${p.gagnants}">${p.gagnants}</td>
+          <td>${p.antecedent}</td>
+          <td>${p.suivant}</td>
+          <td title="${p.symetrie}">${p.symetrie}</td>
+        </tr>
+      `).join('');
+
+      tbody.querySelectorAll('tr').forEach(tr => {
+        const id = parseInt(tr.dataset.id);
+        tr.addEventListener('click', () => setSelected(tr, id));
+        tr.addEventListener('dblclick', () => window.location.href = `/visualiser?id=${id}`);
+      });
+    }
+
+    document.getElementById('btnPrev').addEventListener('click', () => {
+      if (currentOffset > 0) charger(Math.max(0, currentOffset - PAGE_SIZE));
+    });
+
+    document.getElementById('btnNext').addEventListener('click', () => {
+      if (currentOffset + PAGE_SIZE < totalParties) charger(currentOffset + PAGE_SIZE);
+    });
+
+    document.getElementById('btnImport').addEventListener('click', () => {
+      document.getElementById('fileInput').click();
+    });
+
+    document.getElementById('fileInput').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const formData = new FormData();
+      formData.append('file', file);
+      e.target.value = '';
+      const res = await fetch('/api/bdd_import', { method: 'POST', body: formData });
+      const data = await res.json();
+      const msg = document.getElementById('msgZone');
+      if (data.ok) {
+        msg.style.color = '#2ecc71';
+        msg.textContent = data.message;
+        charger();
+      } else {
+        msg.style.color = '#e74c3c';
+        msg.textContent = 'Erreur : ' + data.error;
+      }
+    });
+
+    document.getElementById('btnImportSSV').addEventListener('click', () => {
+      document.getElementById('fileInputSSV').click();
+    });
+
+    document.getElementById('fileInputSSV').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const formData = new FormData();
+      formData.append('file', file);
+      e.target.value = '';
+      const res  = await fetch('/api/bdd_import_ssv', { method: 'POST', body: formData });
+      const data = await res.json();
+      const msg  = document.getElementById('msgZone');
+      if (data.ok) {
+        msg.style.color = '#2ecc71';
+        msg.textContent = data.message;
+        charger();
+      } else {
+        msg.style.color = '#e74c3c';
+        msg.textContent = 'Erreur : ' + data.error;
+      }
+    });
+
+    document.getElementById('btnExportSSV').addEventListener('click', () => {
+      window.location.href = '/api/bdd_export';
+    });
+
+    document.getElementById('btnDeleteSel').addEventListener('click', async () => {
+      if (!selectedId) return;
+      if (!confirm(`Supprimer la partie #${selectedId} ? Cette action est irréversible.`)) return;
+      const data = await api(`/api/bdd_delete/${selectedId}`, 'DELETE');
+      const msg = document.getElementById('msgZone');
+      if (data.ok) {
+        msg.style.color = '#2ecc71';
+        msg.textContent = data.message;
+        // Rester sur la page courante (ajuste si on était sur la dernière entrée d'une page)
+        const newOffset = (totalParties - 1 <= currentOffset && currentOffset > 0)
+          ? currentOffset - PAGE_SIZE : currentOffset;
+        charger(Math.max(0, newOffset));
+      } else {
+        msg.style.color = '#e74c3c';
+        msg.textContent = 'Erreur : ' + data.error;
+      }
+    });
+
+    document.getElementById('btnDeleteAll').addEventListener('click', async () => {
+      if (!confirm('ATTENTION : Êtes-vous sûr de vouloir SUPPRIMER TOUTES les données ?\n\nCette action est IRREVERSIBLE.')) return;
+      const data = await api('/api/bdd_delete_all', 'POST');
+      const msg = document.getElementById('msgZone');
+      if (data.ok) {
+        msg.style.color = '#2ecc71';
+        msg.textContent = data.message;
+        charger(0);  // retour page 1
+      } else {
+        msg.style.color = '#e74c3c';
+        msg.textContent = 'Erreur : ' + data.error;
+      }
+    });
+
+    charger(0);
+  </script>
+</body>
+</html>

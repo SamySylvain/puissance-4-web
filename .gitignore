@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Fichiers générés / entraînement
+*.ssv
+opening_book.json
+train.py
+gen_bdd.py
+
+# Scripts non essentiels au site web
+bga_bot.py
+AGENTS.md
+render.yaml
+
+# Images de debug
+*.png
+*.JPG
+*.jpg
+
+# Claude
+.claude/

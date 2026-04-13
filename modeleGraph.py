@@ -78,10 +78,12 @@ def _eval_w4(a, b, c, d, ia, adv):
     if ni == 4:    return 100000
     if na == 4:    return -100000
     s = 0
-    if ni == 3:    s += 500
-    elif ni == 2:  s += 20
-    if na == 3:    s -= 490
-    elif na == 2:  s -= 15
+    # Amélioration 2 : poids revus — attaque légèrement plus forte,
+    # blocage adversaire nettement plus fort (éviter les défaites)
+    if ni == 3:    s += 600    # était 500 — menacer 3-en-ligne vaut plus
+    elif ni == 2:  s += 30     # était 20
+    if na == 3:    s -= 550    # était -490 — bloquer 3-en-ligne adversaire vaut beaucoup plus
+    elif na == 2:  s -= 22     # était -15
     return s
 
 def _menaces_reelles(plateau, jeton, nL, nC):
@@ -162,6 +164,20 @@ def evaluer_plateau(plateau, jeton_ia, nbrLignes, nbrColonnes):
     for l in range(3, nbrLignes):
         for c in range(nbrColonnes - 3):
             score += _eval_w4(plateau[l][c], plateau[l-1][c+1], plateau[l-2][c+2], plateau[l-3][c+3], jeton_ia, adv)
+
+    # Amélioration 2 : détection des menaces réelles jouables
+    # (3 jetons alignés + 4e case vide et accessible immédiatement)
+    # Une double menace (≥2) est ingagnable pour l'adversaire en un coup.
+    nm_ia  = _menaces_reelles(plateau, jeton_ia, nbrLignes, nbrColonnes)
+    nm_adv = _menaces_reelles(plateau, adv,      nbrLignes, nbrColonnes)
+    if nm_ia >= 2:
+        score += 48000   # Double menace IA → victoire quasi-certaine
+    elif nm_ia == 1:
+        score += 900     # Menace simple mais réelle
+    if nm_adv >= 2:
+        score -= 52000   # Double menace adversaire → urgence absolue de bloquer
+    elif nm_adv == 1:
+        score -= 850
 
     return score
 
@@ -368,6 +384,64 @@ def minimax(plateau, profondeur, maximisant, jeton_ia, nbrLignes, nbrColonnes,
     if not cols:
         return 0, None
 
+    # ══════════════════════════════════════════════════════════════════
+    # PRIORITÉ 1 — L'IA gagne immédiatement → jouer ce coup sans hésiter
+    # ══════════════════════════════════════════════════════════════════
+    for col in cols:
+        row = heights[col]
+        plateau[row][col] = jeton_ia
+        won = _win_at(plateau, row, col, jeton_ia, nbrLignes, nbrColonnes)
+        plateau[row][col] = 0
+        if won:
+            return 900000, col
+
+    # ══════════════════════════════════════════════════════════════════
+    # PRIORITÉ 2 — L'adversaire gagne immédiatement → bloquer absolument
+    # ══════════════════════════════════════════════════════════════════
+    menaces_imm = []
+    for col in cols:
+        row = heights[col]
+        plateau[row][col] = adv
+        if _win_at(plateau, row, col, adv, nbrLignes, nbrColonnes):
+            menaces_imm.append(col)
+        plateau[row][col] = 0
+
+    if len(menaces_imm) == 1:
+        # Une seule case de victoire adversaire → bloquer cette case, point final
+        return -1, menaces_imm[0]
+
+    if len(menaces_imm) >= 2:
+        # Plusieurs menaces immédiates : impossible de tout bloquer en un coup.
+        # Restreindre minimax aux seules cases bloquantes (jouer ailleurs = perdre
+        # immédiatement sur le coup suivant, c'est inutile).
+        best_v_b = -float('inf')
+        best_col_b = menaces_imm[0]
+        for col in menaces_imm:
+            row = heights[col]
+            plateau[row][col] = jeton_ia
+            new_nr = -1
+            for r in range(row - 1, -1, -1):
+                if plateau[r][col] == 0:
+                    new_nr = r; break
+            heights[col] = new_nr
+            nh = h ^ _ZOBRIST[jeton_ia - 1][row][col]
+
+            v = _mm(plateau, max(1, profondeur - 1), False, jeton_ia, adv,
+                    nbrLignes, nbrColonnes, -float('inf'), float('inf'),
+                    heights, nh, (row, col, jeton_ia))[0]
+
+            plateau[row][col] = 0
+            heights[col] = row   # restaurer
+
+            if v > best_v_b:
+                best_v_b = v
+                best_col_b = col
+        return best_v_b, best_col_b
+
+    # ══════════════════════════════════════════════════════════════════
+    # PRIORITÉ 3 — Minimax normal (approfondissement itératif)
+    # ══════════════════════════════════════════════════════════════════
+
     # Approfondissement itératif : depth 1 → profondeur
     # La TT des niveaux précédents améliore l'ordre des coups au niveau suivant
     best_score, best_col = 0, cols[len(cols) // 2]
@@ -448,7 +522,10 @@ def analyser_tous_les_coups(plateau, profondeur, jeton_joueur, nbrLignes, nbrCol
         if col in victoires_imm:
             scores[col] = 900000
         elif menaces_adv and col not in menaces_adv:
-            scores[col] = -900001
+            # Ne pas bloquer = perdre immédiatement sur le coup suivant.
+            # Cette pénalité doit être PLUS BASSE que tout score minimax possible
+            # (les scores minimax sont bornés à ±(900000 + profondeur*1000) ≈ ±910000).
+            scores[col] = -10_000_000
         elif profondeur <= 1:
             scores[col] = evaluer_plateau(plateau, jeton_joueur, nbrLignes, nbrColonnes)
         else:
