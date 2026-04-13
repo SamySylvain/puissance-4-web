@@ -547,10 +547,11 @@ def connecter_db():
     if mysql is None:
         raise RuntimeError("MySQL connector non disponible.")
     return mysql.connector.connect(
-        host="localhost",
-        user="root",
-        password="",
-        database="puissance4"
+        host=os.getenv("DB_HOST", "localhost"),
+        port=int(os.getenv("DB_PORT", "3306")),
+        user=os.getenv("DB_USER", "root"),
+        password=os.getenv("DB_PASSWORD", ""),
+        database=os.getenv("DB_NAME", "puissance4")
     )
 
 def delete_all_db():
