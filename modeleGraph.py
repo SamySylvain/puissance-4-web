@@ -531,11 +531,11 @@ def connecter_db():
     if mysql is None:
         raise RuntimeError("MySQL connector non disponible.")
     return mysql.connector.connect(
-        host=os.getenv("DB_HOST", "localhost"),
-        port=int(os.getenv("DB_PORT", "3306")),
-        user=os.getenv("DB_USER", "root"),
-        password=os.getenv("DB_PASSWORD", ""),
-        database=os.getenv("DB_NAME", "puissance4")
+        host=os.environ.get("MYSQLHOST", "localhost"),
+        port=int(os.environ.get("MYSQLPORT", 3306)),
+        user=os.environ.get("MYSQLUSER", "root"),
+        password=os.environ.get("MYSQLPASSWORD", ""),
+        database=os.environ.get("MYSQLDATABASE", "puissance4"),
     )
 
 def delete_all_db():

@@ -148,9 +148,9 @@
     <button class="btn-menu" onclick="window.location.href='/'">&#8592; RETOUR MENU</button>
     <button class="btn-import" id="btnImport">Importer une partie (.txt)</button>
     <input type="file" id="fileInput" accept=".txt" style="display:none" />
-    <button class="btn-import-ssv" id="btnImportSSV">Importer une bdd (.ssv)</button>
-    <input type="file" id="fileInputSSV" accept=".ssv" style="display:none" />
-    <button class="btn-export-ssv" id="btnExportSSV">Exporter la bdd</button>
+    <button class="btn-import-ssv" id="btnImportCSV">Importer une bdd (.csv)</button>
+    <input type="file" id="fileInputCSV" accept=".csv" style="display:none" />
+    <button class="btn-export-ssv" id="btnExportCSV">Exporter la bdd (.csv)</button>
     <button class="btn-delete-sel" id="btnDeleteSel" disabled>Supprimer la sélection</button>
     <button class="btn-delete" id="btnDeleteAll">DELETE ALL</button>
     <span style="font-size:12px;color:#95a5a6;align-self:center;margin-left:auto;">Double-clic pour visualiser une partie</span>
@@ -218,10 +218,31 @@
     function majPagination() {
       const pageCourante = Math.floor(currentOffset / PAGE_SIZE) + 1;
       const nbPages      = Math.max(1, Math.ceil(totalParties / PAGE_SIZE));
-      document.getElementById('pageInfo').textContent =
-        `Page ${pageCourante} / ${nbPages}  (${totalParties} parties)`;
+      document.getElementById('pageInfo').innerHTML =
+        `Page <span id="pageNum" title="Double-clic pour aller à une page" style="cursor:pointer;text-decoration:underline dotted;">${pageCourante}</span> / ${nbPages}&nbsp;&nbsp;(${totalParties} parties)`;
       document.getElementById('btnPrev').disabled = currentOffset <= 0;
       document.getElementById('btnNext').disabled = currentOffset + PAGE_SIZE >= totalParties;
+
+      document.getElementById('pageNum').addEventListener('dblclick', () => {
+        const nbPages2 = Math.max(1, Math.ceil(totalParties / PAGE_SIZE));
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.min = 1;
+        input.max = nbPages2;
+        input.value = Math.floor(currentOffset / PAGE_SIZE) + 1;
+        input.style.cssText = 'width:50px;font-size:13px;text-align:center;border-radius:4px;border:1px solid #5d7a94;background:#2c3e50;color:white;padding:1px 4px;';
+        const span = document.getElementById('pageNum');
+        span.replaceWith(input);
+        input.focus();
+        input.select();
+
+        function confirmer() {
+          const page = Math.max(1, Math.min(parseInt(input.value) || 1, nbPages2));
+          charger((page - 1) * PAGE_SIZE);
+        }
+        input.addEventListener('keydown', e => { if (e.key === 'Enter') confirmer(); if (e.key === 'Escape') majPagination(); });
+        input.addEventListener('blur', confirmer);
+      });
     }
 
     async function charger(offset = currentOffset) {
@@ -291,17 +312,17 @@
       }
     });
 
-    document.getElementById('btnImportSSV').addEventListener('click', () => {
-      document.getElementById('fileInputSSV').click();
+    document.getElementById('btnImportCSV').addEventListener('click', () => {
+      document.getElementById('fileInputCSV').click();
     });
 
-    document.getElementById('fileInputSSV').addEventListener('change', async (e) => {
+    document.getElementById('fileInputCSV').addEventListener('change', async (e) => {
       const file = e.target.files[0];
       if (!file) return;
       const formData = new FormData();
       formData.append('file', file);
       e.target.value = '';
-      const res  = await fetch('/api/bdd_import_ssv', { method: 'POST', body: formData });
+      const res  = await fetch('/api/bdd_import_csv', { method: 'POST', body: formData });
       const data = await res.json();
       const msg  = document.getElementById('msgZone');
       if (data.ok) {
@@ -314,7 +335,7 @@
       }
     });
 
-    document.getElementById('btnExportSSV').addEventListener('click', () => {
+    document.getElementById('btnExportCSV').addEventListener('click', () => {
       window.location.href = '/api/bdd_export';
     });
 
@@ -337,7 +358,12 @@
     });
 
     document.getElementById('btnDeleteAll').addEventListener('click', async () => {
-      if (!confirm('ATTENTION : Êtes-vous sûr de vouloir SUPPRIMER TOUTES les données ?\n\nCette action est IRREVERSIBLE.')) return;
+      const mdp = prompt('ATTENTION : Entrez le mot de passe pour SUPPRIMER TOUTES les données.\n\nCette action est IRREVERSIBLE.');
+      if (mdp === null) return;
+      if (mdp !== 'ahouais') {
+        alert('Mot de passe incorrect. Suppression annulée.');
+        return;
+      }
       const data = await api('/api/bdd_delete_all', 'POST');
       const msg = document.getElementById('msgZone');
       if (data.ok) {

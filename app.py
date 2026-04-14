@@ -1,4 +1,5 @@
 import copy
+import csv
 import io
 import os
 import random
@@ -507,12 +508,17 @@ def bdd_partie(id_partie):
 @app.get("/api/bdd_parties")
 def bdd_parties():
     try:
+        limit  = max(1, int(request.args.get("limit", 100)))
+        offset = max(0, int(request.args.get("offset", 0)))
         db = connecter_db()
         cursor = db.cursor(dictionary=True)
+        cursor.execute("SELECT COUNT(*) AS total FROM Partie")
+        total = cursor.fetchone()["total"]
         cursor.execute(
             """SELECT id_partie, coups, mode_jeu, statut, pions_gagnants,
                       id_antecedent, id_suivant, id_symetrie, date_creation
-               FROM Partie ORDER BY id_partie DESC"""
+               FROM Partie ORDER BY id_partie DESC LIMIT %s OFFSET %s""",
+            (limit, offset)
         )
         rows = cursor.fetchall()
         db.close()
@@ -529,7 +535,7 @@ def bdd_parties():
                 "symetrie": r["id_symetrie"] if r["id_symetrie"] else "[]",
                 "date": str(r["date_creation"]) if r["date_creation"] else "-",
             })
-        return jsonify({"ok": True, "parties": parties})
+        return jsonify({"ok": True, "parties": parties, "total": total})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
@@ -566,54 +572,90 @@ def bdd_export():
     try:
         db = connecter_db()
         cursor = db.cursor(dictionary=True)
-        cursor.execute("SELECT coups, mode_jeu, statut, pions_gagnants FROM Partie ORDER BY id_partie ASC")
+        cursor.execute(
+            "SELECT id_partie, coups, mode_jeu, statut, pions_gagnants FROM Partie ORDER BY id_partie ASC"
+        )
         rows = cursor.fetchall()
         db.close()
-        lines = ["coups;mode_jeu;statut;pions_gagnants"]
-        for r in rows:
-            coups    = r["coups"] or ""
-            mode     = str(r["mode_jeu"] or "")
-            statut   = r["statut"] or ""
-            gagnants = (r["pions_gagnants"] or "").replace(";", ",")
-            lines.append(f"{coups};{mode};{statut};{gagnants}")
+
+        out = io.StringIO()
+        writer = csv.writer(out, quoting=csv.QUOTE_ALL, lineterminator="\n")
+        writer.writerow(["id", "partie_id", "coups", "joueur_gagnant",
+                         "couleur_gagnant", "ligne_gagnante", "mode_jeu", "statut", "created_at"])
+        for i, r in enumerate(rows, start=1):
+            coups = "(" + (r["coups"] or "") + ")"
+            writer.writerow([
+                i,
+                r["id_partie"],
+                coups,
+                "",
+                "",
+                r["pions_gagnants"] or "",
+                r["mode_jeu"] or "",
+                r["statut"] or "",
+                "",
+            ])
         return Response(
-            "\n".join(lines),
-            mimetype="text/plain",
-            headers={"Content-Disposition": "attachment; filename=bdd_puissance4.ssv"}
+            out.getvalue(),
+            mimetype="text/csv",
+            headers={"Content-Disposition": "attachment; filename=bdd_puissance4.csv"}
         )
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
-@app.post("/api/bdd_import_ssv")
-def bdd_import_ssv():
+@app.post("/api/bdd_import_csv")
+def bdd_import_csv():
     if "file" not in request.files:
         return jsonify({"ok": False, "error": "Aucun fichier fourni"}), 400
     f = request.files["file"]
-    if not f.filename.endswith(".ssv"):
-        return jsonify({"ok": False, "error": "Le fichier doit être un .ssv"}), 400
+    if not f.filename.endswith(".csv"):
+        return jsonify({"ok": False, "error": "Le fichier doit être un .csv"}), 400
     try:
         content = f.read().decode("utf-8")
-        lines = [l.strip() for l in content.splitlines() if l.strip()]
-        if not lines:
+        reader = csv.reader(io.StringIO(content))
+        rows = list(reader)
+        if not rows:
             return jsonify({"ok": False, "error": "Fichier vide"}), 400
-        start = 1 if lines[0].startswith("coups;") else 0
+
+        # Détecter et ignorer la ligne d'en-tête
+        start = 1 if rows[0] and rows[0][0].strip('"').lower() in ("id", "id_partie", "coups") else 0
+
+        # Détecter le format : merged_bdd (9 colonnes) ou legacy ssv-like (4 colonnes)
+        sample = rows[start] if start < len(rows) else (rows[0] if rows else [])
+        is_merged = len(sample) >= 7  # format merged_bdd.csv
+
         db = connecter_db()
         cursor = db.cursor(dictionary=True)
         inseres = ignores = 0
-        for line in lines[start:]:
-            parts = line.split(";", 3)
-            if len(parts) < 2:
-                continue
-            coups    = parts[0].strip()
-            mode     = int(parts[1].strip()) if parts[1].strip().isdigit() else 1
-            statut   = parts[2].strip() if len(parts) > 2 else "EN_COURS"
-            gagnants = parts[3].strip() if len(parts) > 3 else ""
-            cursor.execute("SELECT id_partie FROM Partie WHERE coups = %s", (coups,))
-            if cursor.fetchone():
-                ignores += 1
+
+        for row in rows[start:]:
+            if not row:
                 continue
             try:
+                if is_merged:
+                    # Colonnes : id, partie_id, coups, joueur_gagnant, couleur_gagnant,
+                    #            ligne_gagnante, mode_jeu, statut, created_at
+                    coups    = row[2].strip().strip("()")
+                    gagnants = row[5].strip() if len(row) > 5 else ""
+                    mode_raw = row[6].strip() if len(row) > 6 else "1"
+                    statut   = row[7].strip() if len(row) > 7 else "EN_COURS"
+                else:
+                    # Format simple : coups, mode_jeu, statut, pions_gagnants
+                    coups    = row[0].strip().strip("()")
+                    mode_raw = row[1].strip() if len(row) > 1 else "1"
+                    statut   = row[2].strip() if len(row) > 2 else "EN_COURS"
+                    gagnants = row[3].strip() if len(row) > 3 else ""
+
+                if not coups:
+                    ignores += 1
+                    continue
+                mode = int(mode_raw) if mode_raw.lstrip("-").isdigit() else 1
+
+                cursor.execute("SELECT id_partie FROM Partie WHERE coups = %s", (coups,))
+                if cursor.fetchone():
+                    ignores += 1
+                    continue
                 cursor.execute(
                     "INSERT INTO Partie (coups, mode_jeu, statut, pions_gagnants) VALUES (%s, %s, %s, %s)",
                     (coups, mode, statut, gagnants or None)
@@ -621,6 +663,7 @@ def bdd_import_ssv():
                 inseres += 1
             except Exception:
                 ignores += 1
+
         db.commit()
         db.close()
         return jsonify({"ok": True, "message": f"{inseres} partie(s) importée(s), {ignores} ignorée(s) (doublons)."})
