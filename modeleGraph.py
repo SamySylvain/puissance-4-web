@@ -530,29 +530,12 @@ def analyser_tous_les_coups(plateau, profondeur, jeton_joueur, nbrLignes, nbrCol
 def connecter_db():
     if mysql is None:
         raise RuntimeError("MySQL connector non disponible.")
-
-    # Priorité 1 : URL complète (Railway fournit MYSQL_URL ou DATABASE_URL)
-    url = os.environ.get("MYSQL_URL") or os.environ.get("DATABASE_URL") or os.environ.get("MYSQL_PRIVATE_URL")
-    if url and url.startswith("mysql"):
-        # format : mysql://user:password@host:port/database
-        import urllib.parse
-        p = urllib.parse.urlparse(url)
-        return mysql.connector.connect(
-            host=p.hostname,
-            port=p.port or 3306,
-            user=p.username,
-            password=p.password,
-            database=p.path.lstrip("/"),
-        )
-
-    # Priorité 2 : variables individuelles (MYSQL_HOST ou MYSQLHOST)
-    host     = os.environ.get("MYSQL_HOST")     or os.environ.get("MYSQLHOST",     "localhost")
-    port     = int(os.environ.get("MYSQL_PORT")     or os.environ.get("MYSQLPORT",     3306))
-    user     = os.environ.get("MYSQL_USER")     or os.environ.get("MYSQLUSER",     "root")
-    password = os.environ.get("MYSQL_PASSWORD") or os.environ.get("MYSQLPASSWORD", "")
-    database = os.environ.get("MYSQL_DATABASE") or os.environ.get("MYSQLDATABASE", "puissance4")
     return mysql.connector.connect(
-        host=host, port=port, user=user, password=password, database=database,
+        host=os.getenv("DB_HOST", "localhost"),
+        port=int(os.getenv("DB_PORT", "3306")),
+        user=os.getenv("DB_USER", "root"),
+        password=os.getenv("DB_PASSWORD", ""),
+        database=os.getenv("DB_NAME", "puissance4")
     )
 
 def delete_all_db():
