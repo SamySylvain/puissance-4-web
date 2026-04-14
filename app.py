@@ -301,11 +301,23 @@ def ai_step():
     state_copy = copy.deepcopy(state)
     _ai_play_once(state_copy)
     current = _get_state(gid)
-    if current is None or current["mode"] != 3:
-        # Mode changé pendant le calcul : on retourne l'état actuel sans appliquer le coup
-        return jsonify({"ok": False, "error": "Mode changé pendant le calcul"}), 409
+    if current is None or current["mode"] != 3 or current.get("ia_cancelled"):
+        # Mode changé ou pause demandée pendant le calcul : on jette le résultat
+        if current:
+            current["ia_cancelled"] = False
+        return jsonify({"ok": False, "error": "Calcul annulé"}), 409
     _save_state(gid, state_copy)
     return jsonify({"ok": True, "state": _state_for_response(state_copy)})
+
+
+@app.post("/api/ia_cancel")
+def ia_cancel():
+    gid = _gid()
+    state = _get_state(gid)
+    if not state:
+        return jsonify({"ok": False, "error": "Aucune partie"}), 404
+    state["ia_cancelled"] = True
+    return jsonify({"ok": True, "state": _state_for_response(state)})
 
 
 @app.post("/api/undo")

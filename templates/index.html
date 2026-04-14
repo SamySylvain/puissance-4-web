@@ -907,7 +907,7 @@
       if (state?.mode === 3) {
         iaTimer = setInterval(async () => {
           if (iaPaused || aiRequestInFlight || !state?.jeu_en_cours) {
-            if (!state?.jeu_en_cours) { clearInterval(iaTimer); iaTimer = null; updatePauseBtn(); }
+            if (!state?.jeu_en_cours) { clearInterval(iaTimer); iaTimer = null; iaPaused = true; updatePauseBtn(); }
             return;
           }
           aiRequestInFlight = true;
@@ -924,7 +924,7 @@
 
     function updatePauseBtn() {
       const btn = document.getElementById('btnPause');
-      const isIaVsIa = state?.mode === 3 && state?.jeu_en_cours;
+      const isIaVsIa = state?.mode === 3;
       btn.style.display = isIaVsIa ? 'inline-block' : 'none';
       btn.textContent = iaPaused ? '▶ Reprendre' : '⏸ Pause';
       btn.style.background = iaPaused ? '#27ae60' : '#2980b9';
@@ -1068,10 +1068,20 @@
     // ═══════════════════════════════════════════════════
     //  BOUTONS TOOLBAR
     // ═══════════════════════════════════════════════════
-    document.getElementById('btnPause').addEventListener('click', () => {
+    document.getElementById('btnPause').addEventListener('click', async () => {
       if (!state || !state.jeu_en_cours || state.mode !== 3) return;
       iaPaused = !iaPaused;
+      if (iaPaused && aiRequestInFlight) {
+        // Calcul en cours : on annule côté serveur et on rejette la réponse
+        aiGeneration++;
+        aiRequestInFlight = false;
+        await api('/api/ia_cancel', 'POST');
+        // Resync pour afficher l'état réel (coup non joué)
+        const fresh = await api('/api/state');
+        if (fresh.ok && fresh.state) { state = fresh.state; renderAll(); }
+      }
       updatePauseBtn();
+      updateStatus();
     });
 
     let navInFlight = false;
