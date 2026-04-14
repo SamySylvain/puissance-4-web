@@ -530,12 +530,13 @@ def analyser_tous_les_coups(plateau, profondeur, jeton_joueur, nbrLignes, nbrCol
 def connecter_db():
     if mysql is None:
         raise RuntimeError("MySQL connector non disponible.")
+    host     = os.environ.get("MYSQL_HOST")     or os.environ.get("MYSQLHOST",     "localhost")
+    port     = int(os.environ.get("MYSQL_PORT")     or os.environ.get("MYSQLPORT",     3306))
+    user     = os.environ.get("MYSQL_USER")     or os.environ.get("MYSQLUSER",     "root")
+    password = os.environ.get("MYSQL_PASSWORD") or os.environ.get("MYSQLPASSWORD", "")
+    database = os.environ.get("MYSQL_DATABASE") or os.environ.get("MYSQLDATABASE", "puissance4")
     return mysql.connector.connect(
-        host=os.environ.get("MYSQLHOST", "localhost"),
-        port=int(os.environ.get("MYSQLPORT", 3306)),
-        user=os.environ.get("MYSQLUSER", "root"),
-        password=os.environ.get("MYSQLPASSWORD", ""),
-        database=os.environ.get("MYSQLDATABASE", "puissance4"),
+        host=host, port=port, user=user, password=password, database=database,
     )
 
 def delete_all_db():
