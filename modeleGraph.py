@@ -78,12 +78,10 @@ def _eval_w4(a, b, c, d, ia, adv):
     if ni == 4:    return 100000
     if na == 4:    return -100000
     s = 0
-    # Amélioration 2 : poids revus — attaque légèrement plus forte,
-    # blocage adversaire nettement plus fort (éviter les défaites)
-    if ni == 3:    s += 600    # était 500 — menacer 3-en-ligne vaut plus
-    elif ni == 2:  s += 30     # était 20
-    if na == 3:    s -= 550    # était -490 — bloquer 3-en-ligne adversaire vaut beaucoup plus
-    elif na == 2:  s -= 22     # était -15
+    if ni == 3:    s += 500
+    elif ni == 2:  s += 20
+    if na == 3:    s -= 490
+    elif na == 2:  s -= 15
     return s
 
 def _menaces_reelles(plateau, jeton, nL, nC):
@@ -164,20 +162,6 @@ def evaluer_plateau(plateau, jeton_ia, nbrLignes, nbrColonnes):
     for l in range(3, nbrLignes):
         for c in range(nbrColonnes - 3):
             score += _eval_w4(plateau[l][c], plateau[l-1][c+1], plateau[l-2][c+2], plateau[l-3][c+3], jeton_ia, adv)
-
-    # Amélioration 2 : détection des menaces réelles jouables
-    # (3 jetons alignés + 4e case vide et accessible immédiatement)
-    # Une double menace (≥2) est ingagnable pour l'adversaire en un coup.
-    nm_ia  = _menaces_reelles(plateau, jeton_ia, nbrLignes, nbrColonnes)
-    nm_adv = _menaces_reelles(plateau, adv,      nbrLignes, nbrColonnes)
-    if nm_ia >= 2:
-        score += 48000   # Double menace IA → victoire quasi-certaine
-    elif nm_ia == 1:
-        score += 900     # Menace simple mais réelle
-    if nm_adv >= 2:
-        score -= 52000   # Double menace adversaire → urgence absolue de bloquer
-    elif nm_adv == 1:
-        score -= 850
 
     return score
 
@@ -547,11 +531,10 @@ def connecter_db():
     if mysql is None:
         raise RuntimeError("MySQL connector non disponible.")
     return mysql.connector.connect(
-        host=os.getenv("DB_HOST", "localhost"),
-        port=int(os.getenv("DB_PORT", "3306")),
-        user=os.getenv("DB_USER", "root"),
-        password=os.getenv("DB_PASSWORD", ""),
-        database=os.getenv("DB_NAME", "puissance4")
+        host="localhost",
+        user="root",
+        password="",
+        database="puissance4"
     )
 
 def delete_all_db():

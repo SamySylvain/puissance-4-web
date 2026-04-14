@@ -12,7 +12,6 @@ gen_bdd.py
 # Scripts non essentiels au site web
 bga_bot.py
 AGENTS.md
-render.yaml
 
 # Images de debug
 *.png

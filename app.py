@@ -1,3 +1,4 @@
+import copy
 import io
 import os
 import random
@@ -268,8 +269,18 @@ def ai_move():
     if state["jeton_actuel"] != ai_jeton:
         return jsonify({"ok": False, "error": "Ce n'est pas le tour de l'IA"}), 400
 
-    _ai_play_once(state)
-    return jsonify({"ok": True, "state": _state_for_response(state)})
+    # Travailler sur une copie : le minimax peut être long et le mode
+    # peut changer (set_mode) pendant le calcul. On n'applique le résultat
+    # que si le mode est toujours le même après le calcul.
+    mode_avant = state["mode"]
+    state_copy = copy.deepcopy(state)
+    _ai_play_once(state_copy)
+    current = _get_state(gid)
+    if current is None or current["mode"] != mode_avant:
+        # Mode changé pendant le calcul : on retourne l'état actuel sans appliquer le coup
+        return jsonify({"ok": False, "error": "Mode changé pendant le calcul"}), 409
+    _save_state(gid, state_copy)
+    return jsonify({"ok": True, "state": _state_for_response(state_copy)})
 
 
 @app.post("/api/ai_step")
@@ -281,10 +292,20 @@ def ai_step():
     if state["mode"] != 3:
         return jsonify({"ok": False, "error": "Disponible uniquement en mode IA vs IA"}), 400
 
-    if state["jeu_en_cours"]:
-        _ai_play_once(state)
+    if not state["jeu_en_cours"]:
+        return jsonify({"ok": True, "state": _state_for_response(state)})
 
-    return jsonify({"ok": True, "state": _state_for_response(state)})
+    # Travailler sur une copie : le minimax peut être long et le mode
+    # peut changer (set_mode) pendant le calcul. On n'applique le résultat
+    # que si le mode est toujours IA vs IA après le calcul.
+    state_copy = copy.deepcopy(state)
+    _ai_play_once(state_copy)
+    current = _get_state(gid)
+    if current is None or current["mode"] != 3:
+        # Mode changé pendant le calcul : on retourne l'état actuel sans appliquer le coup
+        return jsonify({"ok": False, "error": "Mode changé pendant le calcul"}), 409
+    _save_state(gid, state_copy)
+    return jsonify({"ok": True, "state": _state_for_response(state_copy)})
 
 
 @app.post("/api/undo")
@@ -386,9 +407,6 @@ def save_game():
     state = _get_state(gid)
     if not state:
         return jsonify({"ok": False, "error": "Aucune partie"}), 404
-    if not state["jeu_en_cours"]:
-        return jsonify({"ok": False, "error": "La partie est déjà terminée"}), 400
-
     _sync_db(state, statut="SAVE", gagnants=None)
     return jsonify({"ok": True, "redirect": "/", "message": "Partie sauvegardée."})
 
@@ -477,18 +495,12 @@ def bdd_partie(id_partie):
 @app.get("/api/bdd_parties")
 def bdd_parties():
     try:
-        limit  = max(1, int(request.args.get("limit",  100)))
-        offset = max(0, int(request.args.get("offset", 0)))
         db = connecter_db()
         cursor = db.cursor(dictionary=True)
-        cursor.execute("SELECT COUNT(*) AS total FROM Partie")
-        total = cursor.fetchone()["total"]
         cursor.execute(
             """SELECT id_partie, coups, mode_jeu, statut, pions_gagnants,
                       id_antecedent, id_suivant, id_symetrie, date_creation
-               FROM Partie ORDER BY id_partie DESC
-               LIMIT %s OFFSET %s""",
-            (limit, offset)
+               FROM Partie ORDER BY id_partie DESC"""
         )
         rows = cursor.fetchall()
         db.close()
@@ -505,7 +517,7 @@ def bdd_parties():
                 "symetrie": r["id_symetrie"] if r["id_symetrie"] else "[]",
                 "date": str(r["date_creation"]) if r["date_creation"] else "-",
             })
-        return jsonify({"ok": True, "parties": parties, "total": total, "offset": offset, "limit": limit})
+        return jsonify({"ok": True, "parties": parties})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
@@ -630,5 +642,5 @@ def bdd_delete_all():
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5001))
+    port = int(os.environ.get("PORT", 5002))
     app.run(host="0.0.0.0", port=port, debug=True)

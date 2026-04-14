@@ -334,6 +334,29 @@
       text-align: left;
     }
     .edit-start button:hover { background: #2e86c1; }
+    .edit-start .edit-mode-btn {
+      background: #34495e;
+      text-align: left;
+    }
+    .edit-start .edit-mode-btn.active {
+      background: #1a6fa8;
+      outline: 2px solid #5dade2;
+    }
+    .edit-start .edit-mode-btn:hover:not(.active) { background: #4a6278; }
+    #btnEditStart {
+      width: 100%;
+      padding: 10px;
+      margin-top: 4px;
+      border: none;
+      border-radius: 7px;
+      font-size: 13px;
+      font-weight: bold;
+      cursor: pointer;
+      background: #27ae60;
+      color: white;
+      transition: background .15s;
+    }
+    #btnEditStart:hover { background: #2ecc71; }
 
     #editMessage {
       text-align: center;
@@ -413,6 +436,7 @@
           <button id="btnRedo" title="Refaire" disabled>&#8594;</button>
           <button id="btnSave" disabled>💾 SAVE</button>
           <button id="btnAbandon" class="btn-danger" disabled>ABANDON</button>
+          <button id="btnPause" style="display:none;">⏸ Pause</button>
           <span id="status">Démarrez une nouvelle partie →</span>
         </div>
 
@@ -432,7 +456,6 @@
           <button class="mode-btn" data-mode="4">🎲 Joueur vs IA (Aléatoire)</button>
           <button class="mode-btn" data-mode="2">🤖 Joueur vs IA (Minimax)</button>
           <button class="mode-btn" data-mode="3">⚡ IA vs IA</button>
-          <div id="predictionIA" style="display:none;margin-top:6px;padding:6px 8px;border-radius:6px;font-size:12px;font-weight:bold;text-align:center;"></div>
           <div id="modeChangeNote"></div>
         </div>
 
@@ -503,7 +526,15 @@
       <!-- Droite éditeur -->
       <div class="edit-right">
 
-        <div class="r-section edit-first">
+        <div class="edit-start">
+          <p class="r-label" style="margin-bottom:2px;">Mode de jeu</p>
+          <button class="edit-mode-btn active" data-edit-mode="1">👥 Joueur vs Joueur</button>
+          <button class="edit-mode-btn" data-edit-mode="4">🎲 Joueur vs IA (Aléatoire)</button>
+          <button class="edit-mode-btn" data-edit-mode="2">🤖 Joueur vs IA (Minimax)</button>
+          <button class="edit-mode-btn" data-edit-mode="3">⚡ IA vs IA</button>
+        </div>
+
+        <div class="r-section edit-first" style="margin-top:8px;">
           <p class="r-label">Commence</p>
           <div class="toggle-group">
             <button class="toggle-btn sel-rouge" id="editFirst1">● Rouge</button>
@@ -511,12 +542,15 @@
           </div>
         </div>
 
-        <div class="edit-start">
-          <p class="r-label" style="margin-bottom:2px;">Lancer avec</p>
-          <button id="btnEditJvJ">👥 Joueur vs Joueur</button>
-          <button id="btnEditJvIA">🤖 Joueur vs IA (Minimax)</button>
-          <button id="btnEditIAvIA">⚡ IA vs IA</button>
+        <div class="r-section" id="editJeJoueSection" style="display:none; margin-top:8px;">
+          <p class="r-label">Je joue</p>
+          <div class="toggle-group">
+            <button class="toggle-btn sel-rouge" id="editHuman1">● Rouge</button>
+            <button class="toggle-btn" id="editHuman2">● Jaune</button>
+          </div>
         </div>
+
+        <button id="btnEditStart">▶ Commencer partie</button>
 
       </div>
     </div>
@@ -550,6 +584,8 @@
     let iaTimer            = null;
     let aiRequestInFlight  = false;
     let playerVsAiTimeout  = null;
+    let iaPaused           = false;
+    let aiGeneration       = 0;  // incrémenté à chaque stopAllAi pour invalider les réponses en retard
     const SAVES_KEY = 'puissance4_saves';
 
     // Paramètres UI (avant/indépendants de la partie)
@@ -788,9 +824,12 @@
         return;
       }
 
-      btnUndo.disabled   = !state.historique || state.historique.length === 0;
-      btnRedo.disabled   = !state.historique_futur || state.historique_futur.length === 0;
-      btnSave.disabled   = !state.jeu_en_cours;
+      const lockArrows = navInFlight ||
+                         (state.jeu_en_cours && state.mode === 3 && !iaPaused) ||
+                         (state.jeu_en_cours && state.mode === 2 && aiRequestInFlight);
+      btnUndo.disabled = lockArrows || !state.historique || state.historique.length === 0;
+      btnRedo.disabled = lockArrows || !state.historique_futur || state.historique_futur.length === 0;
+      btnSave.disabled   = false;
       btnAbandon.disabled= !state.jeu_en_cours;
 
       if (state.jeu_en_cours) {
@@ -800,7 +839,7 @@
                             (state.mode === 3 ? false :
                              state.jeton_actuel === humanJeton);
         const who = (state.mode === 1) ? `Tour ${colorName(state.jeton_actuel)}`
-                  : (state.mode === 3) ? `IA joue (${colorName(state.jeton_actuel)})`
+                  : (state.mode === 3) ? `IA réfléchit… (${colorName(state.jeton_actuel)})`
                   : isHumanTurn ? `Votre tour (${colorName(state.jeton_actuel)})`
                   : `IA réfléchit… (${colorName(state.jeton_actuel)})`;
         statusEl.textContent = who;
@@ -810,42 +849,13 @@
       }
     }
 
-    function updatePrediction() {
-      const el = document.getElementById('predictionIA');
-      const score = state?.dernier_score_ia;
-      const usesMinimax = state?.mode === 2 || state?.mode === 3;
-
-      if (!state || !usesMinimax || score === undefined || score === 0 && state.historique?.length === 0) {
-        el.style.display = 'none';
-        return;
-      }
-
-      let texte, bg, color;
-      if (score >= 500000) {
-        texte = '🏆 Victoire probable';
-        bg = '#1e8449'; color = 'white';
-      } else if (score <= -500000) {
-        texte = '💀 Défaite probable';
-        bg = '#922b21'; color = 'white';
-      } else if (score > -300 && score < 300) {
-        texte = '🤝 Nul probable';
-        bg = '#7d6608'; color = 'white';
-      } else {
-        texte = '❓ Incertain';
-        bg = '#1a5276'; color = 'white';
-      }
-
-      el.textContent = texte;
-      el.style.background = bg;
-      el.style.color = color;
-      el.style.display = 'block';
-    }
 
     function renderAll() {
       updateStatus();
       drawBoard();
       syncRightPanel();
-      updatePrediction();
+
+      updatePauseBtn();
 
       if (!state?.jeu_en_cours && state?.pions_gagnants?.length) {
         const gagnant = colorName(state.jeton_actuel);
@@ -873,17 +883,21 @@
       if (!state || !state.jeu_en_cours) return;
       if ((state.mode === 2 || state.mode === 4) && isAiTurn()) {
         if (playerVsAiTimeout) { clearTimeout(playerVsAiTimeout); playerVsAiTimeout = null; }
+        aiRequestInFlight = true;
+        updateStatus();
+        const gen = aiGeneration;
         playerVsAiTimeout = setTimeout(async () => {
-          if (!state || !isAiTurn()) return;
-          if (aiRequestInFlight) return;
-          aiRequestInFlight = true;
+          if (gen !== aiGeneration) return;  // stopAllAi() appelé entre-temps
+          if (!state || !isAiTurn()) { aiRequestInFlight = false; updateStatus(); return; }
           try {
             const data = await api('/api/ai_move', 'POST');
+            if (gen !== aiGeneration) return;  // réponse périmée
             if (!data.ok) { messageEl.textContent = data.error || "Erreur IA"; return; }
             if (!state?.jeu_en_cours) return;
             state = data.state;
+            aiRequestInFlight = false;
             renderAll();
-          } finally { aiRequestInFlight = false; }
+          } finally { if (gen === aiGeneration) aiRequestInFlight = false; }
         }, 600);
       }
     }
@@ -892,23 +906,35 @@
       if (iaTimer) { clearInterval(iaTimer); iaTimer = null; }
       if (state?.mode === 3) {
         iaTimer = setInterval(async () => {
-          if (aiRequestInFlight || !state?.jeu_en_cours) {
-            if (!state?.jeu_en_cours) { clearInterval(iaTimer); iaTimer = null; }
+          if (iaPaused || aiRequestInFlight || !state?.jeu_en_cours) {
+            if (!state?.jeu_en_cours) { clearInterval(iaTimer); iaTimer = null; updatePauseBtn(); }
             return;
           }
           aiRequestInFlight = true;
+          const gen = aiGeneration;
           try {
             const data = await api('/api/ai_step', 'POST');
+            if (gen !== aiGeneration) return;  // réponse périmée, on ignore
             if (data.ok && state?.jeu_en_cours) { state = data.state; renderAll(); }
-          } finally { aiRequestInFlight = false; }
+          } finally { if (gen === aiGeneration) aiRequestInFlight = false; }
         }, 600);
       }
+      updatePauseBtn();
+    }
+
+    function updatePauseBtn() {
+      const btn = document.getElementById('btnPause');
+      const isIaVsIa = state?.mode === 3 && state?.jeu_en_cours;
+      btn.style.display = isIaVsIa ? 'inline-block' : 'none';
+      btn.textContent = iaPaused ? '▶ Reprendre' : '⏸ Pause';
+      btn.style.background = iaPaused ? '#27ae60' : '#2980b9';
     }
 
     function stopAllAi() {
       if (iaTimer) { clearInterval(iaTimer); iaTimer = null; }
       if (playerVsAiTimeout) { clearTimeout(playerVsAiTimeout); playerVsAiTimeout = null; }
       aiRequestInFlight = false;
+      aiGeneration++;
     }
 
     // ═══════════════════════════════════════════════════
@@ -916,6 +942,7 @@
     // ═══════════════════════════════════════════════════
     async function startGame() {
       stopAllAi();
+      iaPaused = false;
       const mode        = selMode;
       const humanJeton  = (mode === 2 || mode === 4) ? selHuman : 1;
       const jetonInit   = selCommence;
@@ -945,16 +972,12 @@
       if (!gameId) { drawBoard(); return; }
       const data = await api('/api/state');
       if (!data.ok || !data.state) { drawBoard(); return; }
-      if (!data.state.jeu_en_cours) {
-        await api('/api/clear_state', 'POST');
-        saveGameId(null);
-        drawBoard();
-        return;
-      }
       state = data.state;
       renderAll();
-      setupIaLoop();
-      scheduleAiIfNeeded();
+      if (data.state.jeu_en_cours) {
+        setupIaLoop();
+        scheduleAiIfNeeded();
+      }
     }
 
     // ═══════════════════════════════════════════════════
@@ -990,9 +1013,14 @@
         if (state && state.jeu_en_cours) {
           // Changer de mode en cours de partie
           stopAllAi();
+          iaPaused = false;
           const data = await api('/api/set_mode', 'POST', { mode: newMode });
           if (!data.ok) { modeChangeNote.textContent = data.error; return; }
-          state = data.state;
+          // Resync obligatoire : une callback setInterval peut s'être
+          // exécutée après clearInterval (déjà en file JS) et avoir joué
+          // un coup côté serveur → on relit l'état réel du serveur.
+          const fresh = await api('/api/state');
+          state = (fresh.ok && fresh.state) ? fresh.state : data.state;
           selMode = newMode;
           modeChangeNote.textContent = '✓ Mode changé';
           setTimeout(() => { modeChangeNote.textContent = ''; }, 1800);
@@ -1040,24 +1068,34 @@
     // ═══════════════════════════════════════════════════
     //  BOUTONS TOOLBAR
     // ═══════════════════════════════════════════════════
-    document.getElementById('btnUndo').addEventListener('click', async () => {
-      if (!state) return;
-      stopAllAi();
-      const data = await api('/api/undo', 'POST');
-      if (!data.ok) { messageEl.textContent = data.error || 'Undo impossible'; return; }
-      state = data.state;
-      renderAll();
+    document.getElementById('btnPause').addEventListener('click', () => {
+      if (!state || !state.jeu_en_cours || state.mode !== 3) return;
+      iaPaused = !iaPaused;
+      updatePauseBtn();
     });
 
-    document.getElementById('btnRedo').addEventListener('click', async () => {
-      if (!state) return;
-      stopAllAi();
-      const data = await api('/api/redo', 'POST');
-      if (!data.ok) { messageEl.textContent = data.error || 'Redo impossible'; return; }
-      state = data.state;
-      renderAll();
-      scheduleAiIfNeeded();
-    });
+    let navInFlight = false;
+
+    async function doNav(apiUrl) {
+      if (navInFlight || !state) return;
+      const iaVsIaPaused = state.mode === 3 && iaPaused;
+      if (!iaVsIaPaused) stopAllAi();
+      navInFlight = true;
+      updateStatus();
+      try {
+        const data = await api(apiUrl, 'POST');
+        if (!data.ok) { messageEl.textContent = data.error || 'Navigation impossible'; return; }
+        state = data.state;
+        renderAll();
+        if (!iaVsIaPaused) scheduleAiIfNeeded();
+      } finally {
+        navInFlight = false;
+        updateStatus();
+      }
+    }
+
+    document.getElementById('btnUndo').addEventListener('click', () => doNav('/api/undo'));
+    document.getElementById('btnRedo').addEventListener('click', () => doNav('/api/redo'));
 
     document.getElementById('btnSave').addEventListener('click', async () => {
       if (!state) return;
@@ -1074,8 +1112,10 @@
       const data = await api('/api/save', 'POST');
       if (!data.ok) { messageEl.textContent = data.error || 'Erreur sauvegarde'; return; }
       stopAllAi();
-      state = null;
-      renderAll();
+      if (state.jeu_en_cours) {
+        state = null;
+        renderAll();
+      }
       messageEl.textContent = '✓ Partie sauvegardée.';
     });
 
@@ -1107,14 +1147,20 @@
     let editAlterne    = false;
     let editAlterneNext = 1;
     let editFirstJeton = 1;
+    let editSelMode    = 1;
+    let editSelHuman   = 1;
 
     function openEditMode() {
       editBoard      = Array.from({length: NB_LIGNES}, () => Array(NB_COLONNES).fill(0));
       editColor      = 1;
       editFirstJeton = 1;
+      editSelMode    = 1;
+      editSelHuman   = 1;
       editMessage.textContent = '';
       refreshEditPalette();
       refreshEditFirst();
+      refreshEditModeButtons();
+      refreshEditHumanButtons();
       showEditView();
       drawEditBoard();
       renderEditorSaves();
@@ -1198,27 +1244,50 @@
       drawEditBoard();
     });
 
+    function refreshEditModeButtons() {
+      document.querySelectorAll('.edit-mode-btn').forEach(btn => {
+        btn.classList.toggle('active', parseInt(btn.dataset.editMode) === editSelMode);
+      });
+      const needsHuman = editSelMode === 2 || editSelMode === 4;
+      document.getElementById('editJeJoueSection').style.display = needsHuman ? 'flex' : 'none';
+    }
+
+    function refreshEditHumanButtons() {
+      document.getElementById('editHuman1').classList.remove('sel-rouge', 'sel-jaune');
+      document.getElementById('editHuman2').classList.remove('sel-rouge', 'sel-jaune');
+      if (editSelHuman === 1) document.getElementById('editHuman1').classList.add('sel-rouge');
+      else                    document.getElementById('editHuman2').classList.add('sel-jaune');
+    }
+
     async function lancerDepuisEdition(mode) {
       editMessage.textContent = '';
       const data = await api('/api/start_from_position', 'POST', {
         plateau: editBoard,
         mode,
         jeton_actuel: editFirstJeton,
-        human_jeton: selHuman,
+        human_jeton: editSelHuman,
       });
       if (!data.ok) { editMessage.textContent = data.error || 'Position invalide'; return; }
       if (data.gid) saveGameId(data.gid);
       state = data.state;
       selMode = mode;
+      selHuman = editSelHuman;
       showMainView();
       renderAll();
       setupIaLoop();
       scheduleAiIfNeeded();
     }
 
-    document.getElementById('btnEditJvJ').addEventListener('click',   () => lancerDepuisEdition(1));
-    document.getElementById('btnEditJvIA').addEventListener('click',  () => lancerDepuisEdition(2));
-    document.getElementById('btnEditIAvIA').addEventListener('click', () => lancerDepuisEdition(3));
+    document.querySelectorAll('.edit-mode-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        editSelMode = parseInt(btn.dataset.editMode);
+        refreshEditModeButtons();
+      });
+    });
+
+    document.getElementById('editHuman1').addEventListener('click', () => { editSelHuman = 1; refreshEditHumanButtons(); });
+    document.getElementById('editHuman2').addEventListener('click', () => { editSelHuman = 2; refreshEditHumanButtons(); });
+    document.getElementById('btnEditStart').addEventListener('click', () => lancerDepuisEdition(editSelMode));
     document.getElementById('btnEditMode').addEventListener('click',  openEditMode);
 
     // ── Sauvegardes éditeur ──
