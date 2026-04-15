@@ -444,8 +444,17 @@ def start_from_position():
         return jsonify({"ok": False, "error": "Mode invalide"}), 400
     if jeton_actuel not in (1, 2):
         return jsonify({"ok": False, "error": "Jeton invalide"}), 400
-    if verificationVictoire(plateau, NB_LIGNES, NB_COLONNES):
-        return jsonify({"ok": False, "error": "La position contient déjà une victoire"}), 400
+
+    # Historique optionnel (fourni lors d'un import .txt pour permettre le undo)
+    historique_raw = data.get("historique", [])
+    historique = [[int(l), int(c)] for l, c in historique_raw] if historique_raw else []
+    historique_coups = str(data.get("historique_coups", ""))
+    partie_terminee = bool(data.get("partie_terminee", False))
+
+    # Détecter une victoire dans la position importée
+    victorieux = verificationVictoire(plateau, NB_LIGNES, NB_COLONNES)
+    jeu_en_cours = not victorieux and not partie_terminee
+    pions_gagnants = [list(c) for c in victorieux] if victorieux else []
 
     id_partie_db = initialiser_partie_db(mode, NB_LIGNES, NB_COLONNES)
     state = {
@@ -455,17 +464,18 @@ def start_from_position():
         "nb_colonnes": NB_COLONNES,
         "plateau": plateau,
         "jeton_actuel": jeton_actuel,
-        "jeu_en_cours": True,
-        "historique": [],
-        "historique_coups": "",
-        "pions_gagnants": [],
+        "jeu_en_cours": jeu_en_cours,
+        "historique": historique,
+        "historique_coups": historique_coups,
+        "pions_gagnants": pions_gagnants,
         "scores_colonnes": [None] * NB_COLONNES,
         "dernier_score_ia": 0,
         "profondeur_ia": 9,
         "historique_futur": [],
         "id_partie_db": id_partie_db,
     }
-    _compute_scores(state)
+    if jeu_en_cours:
+        _compute_scores(state)
     gid = data.get("gid") or str(uuid.uuid4())
     _save_state(gid, state)
     return jsonify({"ok": True, "gid": gid, "state": _state_for_response(state)})

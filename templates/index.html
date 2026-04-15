@@ -427,6 +427,8 @@
         <button id="btnLoad">📂 Charger partie</button>
         <button id="btnEditMode">✏ &nbsp;Mode Édition</button>
         <button id="btnBDD" onclick="window.location.href='/bdd'" style="background:#34495e;color:white;">🗄 Base de données</button>
+        <button id="btnImportTxtAccueil" style="background:#e67e22;color:white;">📂 Importer .txt</button>
+        <input type="file" id="importTxtFileInput" accept=".txt" style="display:none" />
       </div>
 
       <!-- ── Plateau ── -->
@@ -593,6 +595,7 @@
     let selCommence = 1;   // 1=rouge, 2=jaune
     let selHuman    = 1;   // 1=rouge, 2=jaune  (JvIA uniquement)
     let selDepth    = 9;
+    let importedMovesCount = 0;  // nb de coups chargés via .txt (0 = partie normale)
 
     // ═══════════════════════════════════════════════════
     //  GAME ID  (isolé par onglet via sessionStorage)
@@ -845,7 +848,15 @@
         statusEl.textContent = who;
       } else {
         statusEl.style.color = 'white';
-        statusEl.textContent = 'PARTIE TERMINÉE';
+        const nbCoups = state.historique ? state.historique.length : 0;
+        let txt = `Partie terminée en ${nbCoups} coup${nbCoups > 1 ? 's' : ''}`;
+        if (importedMovesCount > 0) {
+          const depuisImport = nbCoups - importedMovesCount;
+          if (depuisImport > 0) {
+            txt += ` — ${depuisImport} coup${depuisImport > 1 ? 's' : ''} depuis l'import`;
+          }
+        }
+        statusEl.textContent = txt;
       }
     }
 
@@ -956,6 +967,7 @@
       if (!data.ok) { alert(data.error || 'Erreur création partie'); return; }
       if (data.gid) saveGameId(data.gid);
       state = data.state;
+      importedMovesCount = 0;
 
       if (mode !== 1) {
         const depthData = await api('/api/set_depth', 'POST', { depth });
@@ -1351,6 +1363,106 @@
       editMessage.style.color = '#2ecc71';
       editMessage.textContent = '✓ Position sauvegardée !';
       setTimeout(() => { editMessage.textContent = ''; editMessage.style.color = '#e74c3c'; }, 1500);
+    });
+
+    // ═══════════════════════════════════════════════════
+    //  IMPORT .TXT (PAGE D'ACCUEIL)
+    // ═══════════════════════════════════════════════════
+    document.getElementById('btnImportTxtAccueil').addEventListener('click', () => {
+      document.getElementById('importTxtFileInput').click();
+    });
+
+    document.getElementById('importTxtFileInput').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      e.target.value = '';
+      if (!file) return;
+
+      const nom = file.name.replace(/\.txt$/i, '');
+      if (!/^\d+$/.test(nom)) {
+        document.getElementById('message').textContent = 'Erreur : le nom du fichier doit contenir uniquement des chiffres.';
+        return;
+      }
+
+      // Rejouer les coups pour reconstruire le plateau + historique
+      const plateau = Array.from({length: NB_LIGNES}, () => Array(NB_COLONNES).fill(0));
+      const historique = [];
+      let jeton = 1;
+      let valid = true;
+      let partieTerminee = false;
+
+      function winAt(pl, row, col, player) {
+        const dirs = [[0,1],[1,0],[1,1],[1,-1]];
+        for (const [dr, dc] of dirs) {
+          let cnt = 1;
+          for (let s = 1; s <= 3; s++) {
+            const r = row+dr*s, c = col+dc*s;
+            if (r<0||r>=NB_LIGNES||c<0||c>=NB_COLONNES||pl[r][c]!==player) break;
+            cnt++;
+          }
+          for (let s = 1; s <= 3; s++) {
+            const r = row-dr*s, c = col-dc*s;
+            if (r<0||r>=NB_LIGNES||c<0||c>=NB_COLONNES||pl[r][c]!==player) break;
+            cnt++;
+          }
+          if (cnt >= 4) return true;
+        }
+        return false;
+      }
+
+      for (const ch of nom) {
+        const col = parseInt(ch) - 1;
+        if (col < 0 || col >= NB_COLONNES) { valid = false; break; }
+        let posee = -1;
+        for (let l = NB_LIGNES - 1; l >= 0; l--) {
+          if (plateau[l][col] === 0) { plateau[l][col] = jeton; posee = l; break; }
+        }
+        if (posee === -1) { valid = false; break; }
+        historique.push([posee, col]);
+        if (winAt(plateau, posee, col, jeton)) {
+          partieTerminee = true;
+          break;  // jeton reste le gagnant, on ne switche pas
+        }
+        jeton = jeton === 1 ? 2 : 1;
+      }
+
+      if (!valid) {
+        document.getElementById('message').textContent = 'Erreur : coup invalide dans la séquence.';
+        return;
+      }
+
+      const data = await api('/api/start_from_position', 'POST', {
+        plateau,
+        mode: selMode,
+        jeton_actuel: jeton,
+        human_jeton: selHuman,
+        gid: gameId,
+        historique,
+        historique_coups: nom,
+        partie_terminee: partieTerminee,
+      });
+
+      if (!data.ok) {
+        document.getElementById('message').textContent = data.error || 'Position invalide.';
+        return;
+      }
+
+      if (data.gid) saveGameId(data.gid);
+      state = data.state;
+      importedMovesCount = partieTerminee ? historique.length : nom.length;
+
+      // Stopper toute IA en cours et démarrer en pause
+      stopAllAi();
+      iaPaused = true;
+      setupIaLoop();   // affiche le bouton Pause/Reprendre si mode 3, mais ne joue pas
+
+      renderAll();
+      if (partieTerminee) {
+        document.getElementById('status').textContent =
+          `Partie terminée en ${historique.length} coup${historique.length > 1 ? 's' : ''}`;
+      } else {
+        document.getElementById('status').textContent =
+          `${nom.length} coups chargés — au tour de ${jeton === 1 ? 'Rouge' : 'Jaune'}`;
+      }
     });
 
     // ═══════════════════════════════════════════════════

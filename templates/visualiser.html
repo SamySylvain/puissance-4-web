@@ -150,13 +150,13 @@
       const etapes = [];
       let plateau = creerPlateau();
       let jeton = 1;
-      etapes.push({ plateau: JSON.parse(JSON.stringify(plateau)), jeton: 1 });
+      etapes.push({ plateau: JSON.parse(JSON.stringify(plateau)), jeton: 1, lastPos: null });
       for (const ch of coups) {
         const col = parseInt(ch) - 1;
         if (col < 0 || col >= NB_COLONNES) continue;
         const newPlateau = JSON.parse(JSON.stringify(plateau));
-        poserJeton(newPlateau, col, jeton);
-        etapes.push({ plateau: newPlateau, jeton });
+        const row = poserJeton(newPlateau, col, jeton);
+        etapes.push({ plateau: newPlateau, jeton, lastPos: row >= 0 ? [row, col] : null });
         plateau = newPlateau;
         jeton = jeton === 1 ? 2 : 1;
       }
@@ -164,9 +164,10 @@
     }
 
     function drawBoard() {
-      const { plateau } = etapes[cursor];
+      const { plateau, lastPos } = etapes[cursor];
       const isLast = cursor === etapes.length - 1;
       const gagnantsSet = new Set(isLast ? gagnants.map(([l, c]) => `${l}-${c}`) : []);
+      const lastKey = lastPos ? `${lastPos[0]}-${lastPos[1]}` : null;
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = 'blue';
@@ -184,6 +185,7 @@
           const cx = c * TAILLE_CASE + TAILLE_CASE / 2;
           const cy = l * TAILLE_CASE + 30 + TAILLE_CASE / 2;
           const val = plateau[l][c];
+          const key = `${l}-${c}`;
 
           ctx.beginPath();
           ctx.arc(cx, cy, TAILLE_CASE / 2 - 5, 0, Math.PI * 2);
@@ -193,11 +195,21 @@
           ctx.strokeStyle = 'black';
           ctx.stroke();
 
-          if (gagnantsSet.has(`${l}-${c}`) && val !== 0) {
+          // Pions gagnants : bordure blanche épaisse
+          if (gagnantsSet.has(key) && val !== 0) {
             ctx.beginPath();
             ctx.arc(cx, cy, TAILLE_CASE / 2 - 2, 0, Math.PI * 2);
             ctx.lineWidth = 4;
             ctx.strokeStyle = 'white';
+            ctx.stroke();
+          }
+
+          // Dernier coup joué : contour noir épais (comme le jeu normal)
+          if (key === lastKey && val !== 0) {
+            ctx.beginPath();
+            ctx.arc(cx, cy, TAILLE_CASE / 2 - 2, 0, Math.PI * 2);
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = 'black';
             ctx.stroke();
           }
         }

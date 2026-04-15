@@ -639,23 +639,23 @@ def importer_partie_depuis_fichier(chemin_fichier):
                         statut_final = 'FIN_ROUGE' if joueur == 1 else 'FIN_JAUNE'
                         break
                     joueur = 3 - joueur
-        sql = """
-            INSERT INTO Partie (coups, mode_jeu, statut, type_donnee, pions_gagnants, confiance, nb_colonnes) 
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-        """
+        gagnants_str = str(gagnants) if gagnants else None
+        cursor.execute(
+            "INSERT INTO Partie (coups, mode_jeu, statut, pions_gagnants) VALUES (%s, %s, %s, %s)",
+            (coups_extraits, 1, statut_final, gagnants_str)
+        )
+        nouvel_id = cursor.lastrowid
         try:
-            cursor.execute(sql, (coups_extraits, 1, statut_final, 'IMPORT', str(gagnants), 3, 9))
-            nouvel_id = cursor.lastrowid
-        except Exception as e:
-            print(f"Warning importer_partie_depuis_fichier: insert with extra columns failed: {e}")
-            sql_old = "INSERT INTO Partie (coups, mode_jeu, statut, type_donnee, pions_gagnants) VALUES (%s, %s, %s, %s, %s)"
-            cursor.execute(sql_old, (coups_extraits, 1, statut_final, 'IMPORT', str(gagnants)))
-            nouvel_id = cursor.lastrowid
-        plateau_hash = obtenir_forme_normale(plateau_v)
-        cursor.execute("INSERT INTO Situation (id_partie, plateau_hash) VALUES (%s, %s)", (nouvel_id, plateau_hash))
+            plateau_hash = obtenir_forme_normale(plateau_v)
+            cursor.execute("INSERT INTO Situation (id_partie, plateau_hash) VALUES (%s, %s)", (nouvel_id, plateau_hash))
+        except Exception:
+            pass  # La table Situation est optionnelle
         db.commit()
         db.close()
-        actualiser_coup_db(nouvel_id, coups_extraits, plateau_v, statut_final, gagnants)
+        try:
+            actualiser_coup_db(nouvel_id, coups_extraits, plateau_v, statut_final, gagnants)
+        except Exception:
+            pass
         return True, f"Partie {nouvel_id} importée (Statut: {statut_final})"
     except Exception as e:
         return False, f"Erreur lors de l'importation : {e}"
